@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B1020">
+<title>Face Worms</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+:root{
+  --bg:#0B1020; --bg2:#141B33; --card:#1A2342; --line:#2A3560; --ink:#F2F5FF; --muted:#9AA6CF;
+  --lime:#B6F23C; --pink:#FF4F8B; --sky:#3FC3FF; --gold:#FFC93C; --red:#FF5A5A;
+  --f-display:"Baloo 2","Nunito",system-ui,sans-serif; --f-body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+
+/* ---------- menus ---------- */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;overflow-y:auto;
+  padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:radial-gradient(1200px 600px at 50% -10%,#1E2A5A 0%,transparent 60%),var(--bg)}
+.col{width:100%;max-width:440px;display:flex;flex-direction:column;gap:14px}
+.logo{font-family:var(--f-display);font-weight:800;font-size:44px;line-height:1;text-align:center;margin:8px 0 2px;letter-spacing:.5px}
+.logo span{color:var(--lime)}
+.sub{color:var(--muted);text-align:center;margin:0 0 6px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.lbl{font-size:12.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.inp{width:100%;background:var(--bg2);border:2px solid var(--line);border-radius:14px;padding:12px 14px;font-size:17px;font-weight:700;outline:none}
+.inp:focus{border-color:var(--sky)}
+.btn{border:0;border-radius:16px;padding:14px 18px;font-weight:800;font-size:17px;background:var(--bg2);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.big{font-family:var(--f-display);font-size:22px;padding:14px 18px}
+.btn.lime{background:var(--lime);border-color:var(--lime);color:#14200A}
+.btn.pink{background:var(--pink);border-color:var(--pink);color:#fff}
+.btn:disabled{opacity:.45}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.faceRow{display:flex;gap:14px;align-items:center}
+.face{width:84px;height:84px;border-radius:50%;flex:none;background:var(--bg2);border:4px solid var(--lime);overflow:hidden;display:grid;place-items:center;color:var(--muted);font-weight:800;font-size:12px;text-align:center}
+.face img{width:100%;height:100%;object-fit:cover;display:block}
+.hint{font-size:13.5px;color:var(--muted);line-height:1.4}
+.err{color:var(--red);font-weight:700;font-size:14px;min-height:1em}
+.seg{display:flex;background:var(--bg2);border:2px solid var(--line);border-radius:14px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:none;border-radius:10px;padding:10px 6px;font-weight:800;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--sky);color:#06202E}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{width:48px;height:48px;border-radius:14px;border:2px solid var(--line);background:var(--bg2);font-size:24px;font-weight:800}
+.stepper b{font-family:var(--f-display);font-size:34px;min-width:56px;text-align:center}
+.code{font-family:var(--f-display);font-size:64px;font-weight:800;letter-spacing:8px;text-align:center;color:var(--gold);line-height:1}
+.players{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px}
+.pl{display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:800;font-size:14px;text-align:center;min-width:0}
+.pl .face{width:62px;height:62px;border-width:3px}
+.pl span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl.empty .face{border-style:dashed;border-color:var(--line)}
+.pl.empty{color:var(--muted)}
+.back{align-self:flex-start;border:0;background:none;color:var(--muted);font-weight:800;padding:6px 0}
+
+/* camera */
+.cam{position:fixed;inset:0;z-index:30;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
+.camwrap{width:min(72vw,300px);aspect-ratio:1;border-radius:50%;overflow:hidden;border:6px solid var(--lime);background:#111}
+.camwrap video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.shutter{width:76px;height:76px;border-radius:50%;border:6px solid #fff;background:var(--pink)}
+
+/* ---------- game ---------- */
+#game{position:fixed;inset:0;touch-action:none}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hud{position:absolute;pointer-events:none;font-weight:800}
+.timer{top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);font-family:var(--f-display);font-size:30px;background:#0008;padding:2px 16px;border-radius:14px}
+.timer.low{color:var(--red)}
+.board{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));background:#0009;border-radius:14px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-width:150px;font-size:13.5px}
+.board .r{display:flex;align-items:center;gap:7px}
+.board .r i{font-style:normal;width:14px;color:var(--muted)}
+.board .r img,.board .r .dot{width:22px;height:22px;border-radius:50%;object-fit:cover;flex:none}
+.board .r span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
+.board .r b{font-variant-numeric:tabular-nums}
+.board .r.me{color:var(--lime)}
+.mine{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));background:#0009;border-radius:14px;padding:6px 12px;font-size:15px}
+.mine b{font-family:var(--f-display);font-size:22px;color:var(--lime)}
+@media (max-width:600px){
+  .timer{left:max(10px,env(safe-area-inset-left));transform:none;top:calc(max(10px,env(safe-area-inset-top)) + 46px);font-size:24px;padding:0 12px}
+  .board{min-width:0;font-size:12.5px;padding:6px 8px;gap:4px}
+  .board .r span{max-width:70px}
+  .board .r img,.board .r .dot{width:18px;height:18px}
+  .feed{top:calc(max(10px,env(safe-area-inset-top)) + 96px);font-size:13.5px;left:max(10px,env(safe-area-inset-left));transform:none;align-items:flex-start}
+}
+.feed{left:50%;transform:translateX(-50%);top:calc(max(10px,env(safe-area-inset-top)) + 52px);display:flex;flex-direction:column;align-items:center;gap:4px;font-size:15px}
+.feed div{background:#000a;padding:3px 12px;border-radius:10px;animation:fadeout 3.2s forwards}
+@keyframes fadeout{0%,75%{opacity:1}100%{opacity:0}}
+.boost{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(26px,env(safe-area-inset-bottom));width:86px;height:86px;border-radius:50%;border:4px solid #fff6;background:#FF4F8B88;font-family:var(--f-display);font-weight:800;font-size:18px;color:#fff;touch-action:none}
+.boost.on{background:var(--pink);border-color:#fff}
+.dead{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.dead div{background:#000b;border-radius:20px;padding:18px 26px;text-align:center;font-weight:800;font-size:18px}
+.dead b{display:block;font-family:var(--f-display);font-size:54px;color:var(--gold);line-height:1.1}
+.joy{position:absolute;width:120px;height:120px;border-radius:50%;border:3px solid #fff4;background:#ffffff10;pointer-events:none;transform:translate(-50%,-50%)}
+.joy i{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:#ffffff55;transform:translate(-50%,-50%)}
+.quit{position:absolute;left:max(10px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));border:0;background:#0008;border-radius:12px;padding:8px 12px;font-weight:800;color:var(--muted);font-size:14px}
+
+/* results */
+.res{display:flex;flex-direction:column;gap:8px}
+.res .r{display:flex;align-items:center;gap:10px;background:var(--bg2);border-radius:14px;padding:8px 12px}
+.res .r .n{font-family:var(--f-display);font-size:22px;width:28px;color:var(--muted)}
+.res .r:first-child{background:linear-gradient(90deg,#FFC93C33,var(--bg2));border:2px solid var(--gold)}
+.res .r:first-child .n{color:var(--gold)}
+.res img,.res .dot{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none}
+.res .nm{flex:1;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res .st{text-align:right;font-size:13px;color:var(--muted);line-height:1.3}
+.res .st b{font-size:18px;color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:12px;font-weight:700;z-index:40}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<section class="screen" id="s-home">
+  <div class="col">
+    <div class="logo">Face<span>Worms</span></div>
+    <p class="sub">Your face. Your worm. Eat your friends.</p>
+    <div class="card">
+      <div class="faceRow">
+        <button class="face" id="faceBtn" type="button" aria-label="Take face photo">TAP TO<br>ADD FACE</button>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+          <label class="lbl" for="nameIn">Your name</label>
+          <input class="inp" id="nameIn" maxlength="12" autocomplete="off" placeholder="e.g. Rafi">
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="takePhoto" type="button">📷 Take photo</button>
+        <button class="btn" id="pickPhoto" type="button">🖼 Gallery</button>
+      </div>
+      <input type="file" id="fileIn" accept="image/*" hidden>
+      <div class="err" id="homeErr"></div>
+    </div>
+    <button class="btn big lime" id="goCreate" type="button">Create game</button>
+    <button class="btn big" id="goJoin" type="button">Join game</button>
+    <p class="hint" style="text-align:center">Your face photo is only shared with the players in your game.</p>
+  </div>
+</section>
+
+<!-- CREATE -->
+<section class="screen" id="s-create" hidden>
+  <div class="col">
+    <button class="back" data-back type="button">‹ Back</button>
+    <div class="logo" style="font-size:34px">Create game</div>
+    <div class="card">
+      <span class="lbl">How will friends join?</span>
+      <div class="seg" id="modeSeg">
+        <button type="button" data-mode="online" aria-pressed="true">🌐 Internet</button>
+        <button type="button" data-mode="hotspot" aria-pressed="false">📶 Hotspot</button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+    </div>
+    <div class="card">
+      <span class="lbl">Players (including you)</span>
+      <div class="stepper"><button type="button" id="pMinus">−</button><b id="pCount">3</b><button type="button" id="pPlus">+</button></div>
+      <p class="hint">Empty seats are filled with computer worms when you start.</p>
+    </div>
+    <div class="card">
+      <span class="lbl">Game time</span>
+      <div class="seg" id="timeSeg">
+        <button type="button" data-min="2" aria-pressed="true">2 min</button>
+        <button type="button" data-min="5" aria-pressed="false">5 min</button>
+        <button type="button" data-min="10" aria-pressed="false">10 min</button>
+      </div>
+    </div>
+    <div class="err" id="createErr"></div>
+    <button class="btn big lime" id="doCreate" type="button">Create room</button>
+  </div>
+</section>
+
+<!-- JOIN -->
+<section class="screen" id="s-join" hidden>
+  <div class="col">
+    <button class="back" data-back type="button">‹ Back</button>
+    <div class="logo" style="font-size:34px">Join game</div>
+    <div class="card">
+      <span class="lbl">How are you connected?</span>
+      <div class="seg" id="jmodeSeg">
+        <button type="button" data-mode="online" aria-pressed="true">🌐 Internet</button>
+        <button type="button" data-mode="hotspot" aria-pressed="false">📶 Hotspot</button>
+      </div>
+    </div>
+    <div class="card" id="joinOnline">
+      <label class="lbl" for="codeIn">Room code</label>
+      <input class="inp" id="codeIn" inputmode="numeric" maxlength="5" placeholder="4-digit code" style="font-size:28px;letter-spacing:6px;text-align:center">
+      <p class="hint">Ask the person who created the game for the code.</p>
+    </div>
+    <div class="card" id="joinHot" hidden>
+      <label class="lbl" for="ipIn">Host address</label>
+      <input class="inp" id="ipIn" inputmode="decimal" placeholder="e.g. 192.168.43.1">
+      <p class="hint">Connect your Wi-Fi to the host's hotspot first. The address is filled in automatically; if not, copy it from the host's screen.</p>
+    </div>
+    <div class="err" id="joinErr"></div>
+    <button class="btn big lime" id="doJoin" type="button">Join</button>
+  </div>
+</section>
+
+<!-- LOBBY -->
+<section class="screen" id="s-lobby" hidden>
+  <div class="col">
+    <button class="back" id="leaveLobby" type="button">‹ Leave</button>
+    <div class="card" style="align-items:center;text-align:center">
+      <span class="lbl" id="lobbyLbl">Room code</span>
+      <div class="code" id="lobbyCode">----</div>
+      <p class="hint" id="lobbyHint"></p>
+    </div>
+    <div class="card">
+      <div class="row" style="align-items:center"><span class="lbl" id="seatLbl"></span><span class="lbl" style="text-align:right" id="timeLbl"></span></div>
+      <div class="players" id="lobbyPlayers"></div>
+    </div>
+    <button class="btn big lime" id="startBtn" type="button">Start game</button>
+    <p class="hint" id="waitHint" style="text-align:center" hidden>Waiting for the host to start…</p>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section class="screen" id="s-results" hidden>
+  <div class="col">
+    <div class="logo" style="font-size:38px">Time's up!</div>
+    <div class="card"><div class="res" id="resList"></div></div>
+    <button class="btn big lime" id="againBtn" type="button">Play again</button>
+    <p class="hint" id="againHint" style="text-align:center" hidden>Waiting for the host…</p>
+    <button class="btn" id="exitBtn" type="button">Leave</button>
+  </div>
+</section>
+
+<!-- GAME -->
+<section id="game" hidden>
+  <canvas id="cv"></canvas>
+  <div class="hud mine" id="hudMine">Length <b id="myLen">0</b></div>
+  <div class="hud timer" id="hudTimer">2:00</div>
+  <div class="hud board" id="hudBoard"></div>
+  <div class="hud feed" id="hudFeed"></div>
+  <div class="joy" id="joy" hidden><i id="joyKnob"></i></div>
+  <button class="boost" id="boostBtn" type="button">BOOST</button>
+  <button class="quit" id="quitBtn" type="button">Leave</button>
+  <div class="dead" id="deadBox" hidden><div>You were eaten!<b id="deadCount">3</b>Back in a moment…</div></div>
+</section>
+
+<!-- CAMERA -->
+<div class="cam" id="cam" hidden>
+  <div class="camwrap"><video id="camVideo" playsinline muted autoplay></video></div>
+  <p class="hint" style="color:#fff;text-align:center">Put your face in the circle</p>
+  <div class="row" style="align-items:center;gap:26px">
+    <button class="btn" id="camCancel" type="button">Cancel</button>
+    <button class="shutter" id="camShot" type="button" aria-label="Take photo"></button>
+    <button class="btn" id="camFlip" type="button">Flip</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+/* =========================================================
+   Settings
+   ========================================================= */
+const RELAY_URL = (()=>{ try{ return localStorage.getItem('fw_relay') || 'wss://worm-game-relay.onrender.com' }catch(e){ return 'wss://worm-game-relay.onrender.com' } })();
+const HOT_PORT = 8787;
+const NATIVE = window.FWNative || null;          // provided by the Android app
+
+const $ = id => document.getElementById(id);
+const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v }catch(e){ return d } }, set(k,v){ try{ localStorage.setItem(k,v) }catch(e){} } };
+const COLORS = ['#B6F23C','#FF4F8B','#3FC3FF','#FFC93C','#A879FF','#FF8A3D','#2EE6A8','#FF5A5A','#F7F06D','#6EA8FF'];
+function toast(msg,ms=2200){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,ms) }
+function show(id){ for(const s of document.querySelectorAll('.screen')) s.hidden=s.id!==id; $('game').hidden=id!=='game' }
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* =========================================================
+   Profile: name + face
+   ========================================================= */
+let myName = store.get('fw_name',''), myFace = store.get('fw_face','');
+$('nameIn').value = myName;
+function renderFace(){ $('faceBtn').innerHTML = myFace ? `<img src="${myFace}" alt="">` : 'TAP TO<br>ADD FACE' }
+renderFace();
+$('nameIn').addEventListener('input',()=>{ myName=$('nameIn').value.trim(); store.set('fw_name',myName) });
+
+function squareFace(src, cb){
+  const img=new Image(); img.onload=()=>{
+    const s=Math.min(img.width,img.height), c=document.createElement('canvas'); c.width=c.height=128;
+    const g=c.getContext('2d'); g.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,128,128);
+    cb(c.toDataURL('image/jpeg',0.72));
+  }; img.src=src;
+}
+$('pickPhoto').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>squareFace(r.result,d=>{myFace=d; store.set('fw_face',d); renderFace()}); r.readAsDataURL(f); e.target.value='' };
+
+let camStream=null, camFacing='user';
+async function openCam(){
+  try{
+    if(NATIVE && NATIVE.askCamera) NATIVE.askCamera();
+    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:camFacing,width:{ideal:640},height:{ideal:640}},audio:false});
+    $('camVideo').srcObject=camStream; $('camVideo').style.transform=camFacing==='user'?'scaleX(-1)':'none'; $('cam').hidden=false;
+  }catch(e){ toast('Camera not available — choose a photo from your gallery'); $('fileIn').click() }
+}
+function closeCam(){ if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null } $('cam').hidden=true }
+$('faceBtn').onclick=openCam; $('takePhoto').onclick=openCam;
+$('camCancel').onclick=closeCam;
+$('camFlip').onclick=()=>{ camFacing=camFacing==='user'?'environment':'user'; closeCam(); openCam() };
+$('camShot').onclick=()=>{
+  const v=$('camVideo'), s=Math.min(v.videoWidth,v.videoHeight); if(!s) return;
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  if(camFacing==='user'){ g.translate(128,0); g.scale(-1,1) }
+  g.drawImage(v,(v.videoWidth-s)/2,(v.videoHeight-s)/2,s,s,0,0,128,128);
+  myFace=c.toDataURL('image/jpeg',0.72); store.set('fw_face',myFace); renderFace(); closeCam();
+};
+function checkProfile(errEl){
+  myName=$('nameIn').value.trim();
+  if(!myName){ $(errEl).textContent='Type your name first.'; return false }
+  if(!myFace){ $(errEl).textContent='Add your face photo first — it goes on your worm\'s head!'; return false }
+  $(errEl).textContent=''; return true;
+}
+
+/* =========================================================
+   Menus
+   ========================================================= */
+let cMode='online', cPlayers=3, cMin=2, jMode='online';
+function segPick(segId, attr, val){ for(const b of $(segId).querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset[attr]===String(val)) }
+function modeHint(){ $('modeHint').textContent = cMode==='online'
+  ? 'Everyone needs internet. You get a 4-digit code to share with friends.'
+  : 'No internet needed. Turn on your phone\'s hotspot, ask friends to connect to it, then create the room.' }
+modeHint();
+$('modeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b)return; cMode=b.dataset.mode; segPick('modeSeg','mode',cMode); modeHint() };
+$('timeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b)return; cMin=+b.dataset.min; segPick('timeSeg','min',cMin) };
+$('pMinus').onclick=()=>{ cPlayers=Math.max(2,cPlayers-1); $('pCount').textContent=cPlayers };
+$('pPlus').onclick=()=>{ cPlayers=Math.min(10,cPlayers+1); $('pCount').textContent=cPlayers };
+$('jmodeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b)return; jMode=b.dataset.mode; segPick('jmodeSeg','mode',jMode);
+  $('joinOnline').hidden=jMode!=='online'; $('joinHot').hidden=jMode!=='hotspot';
+  if(jMode==='hotspot' && !$('ipIn').value){ const gw = NATIVE && NATIVE.gatewayIp ? NATIVE.gatewayIp() : ''; if(gw) $('ipIn').value=gw } };
+for(const b of document.querySelectorAll('[data-back]')) b.onclick=()=>show('s-home');
+$('goCreate').onclick=()=>{ if(checkProfile('homeErr')) show('s-create') };
+$('goJoin').onclick=()=>{ if(checkProfile('homeErr')){ $('ipIn').value=store.get('fw_ip','')||$('ipIn').value; show('s-join') } };
+
+/* =========================================================
+   Network: every player talks through a "relay" (cloud server or
+   the host phone's hotspot server). The host runs the game.
+   ========================================================= */
+let net=null;
+function connect(url, onOpen, onMsg, onClose){
+  let ws; try{ ws=new WebSocket(url) }catch(e){ onClose('bad'); return null }
+  let opened=false;
+  const to=setTimeout(()=>{ if(!opened){ try{ws.close()}catch(e){} onClose('timeout') } }, 12000);
+  ws.onopen=()=>{ opened=true; clearTimeout(to); onOpen() };
+  ws.onmessage=e=>{ let m; try{ m=JSON.parse(e.data) }catch(x){ return } onMsg(m) };
+  ws.onclose=()=>{ clearTimeout(to); if(opened) onClose('closed'); else onClose('fail') };
+  ws.onerror=()=>{};
+  const pinger=setInterval(()=>{ if(ws.readyState===1) ws.send('{"t":"ping"}') },20000);
+  return { send:o=>{ if(ws.readyState===1) ws.send(JSON.stringify(o)) }, close:()=>{ clearInterval(pinger); try{ws.onclose=null; ws.close()}catch(e){} } };
+}
+
+/* ---------- create (host) ---------- */
+$('doCreate').onclick=()=>{
+  $('createErr').textContent=''; $('doCreate').disabled=true; $('doCreate').textContent='Connecting…';
+  const done=()=>{ $('doCreate').disabled=false; $('doCreate').textContent='Create room' };
+  let url;
+  if(cMode==='hotspot'){
+    if(!NATIVE || !NATIVE.startServer){ done(); $('createErr').textContent='Hotspot games need the Android app.'; return }
+    const r=JSON.parse(NATIVE.startServer(HOT_PORT)||'{}');
+    if(!r.ok){ done(); $('createErr').textContent='Could not start the hotspot server. Is your hotspot on?'; return }
+    hostIps=r.ips||[]; url='ws://127.0.0.1:'+HOT_PORT;
+  } else url=RELAY_URL;
+  net=connect(url,()=>net.send({t:'create'}),m=>{
+    if(m.t==='created'){ done(); startHosting(m.code) }
+    else if(host) host.onNet(m);
+  },why=>{ done(); if(host){ toast('Connection lost'); endAll() } else $('createErr').textContent = cMode==='online' ? 'Could not reach the game server. Check your internet and try again (the first game of the day can take 30 seconds to wake the server).' : 'Could not start the hotspot game.' });
+};
+let hostIps=[];
+
+/* ---------- join (player) ---------- */
+let client=null;
+$('doJoin').onclick=()=>{
+  $('joinErr').textContent='';
+  let url, code;
+  if(jMode==='online'){ code=$('codeIn').value.trim(); if(!/^\d{4,5}$/.test(code)){ $('joinErr').textContent='Type the 4-digit room code.'; return } url=RELAY_URL }
+  else { const ip=$('ipIn').value.trim(); if(!ip){ $('joinErr').textContent='Type the host address.'; return } store.set('fw_ip',ip); url='ws://'+ip+':'+HOT_PORT; code='hot' }
+  $('doJoin').disabled=true; $('doJoin').textContent='Connecting…';
+  const done=()=>{ $('doJoin').disabled=false; $('doJoin').textContent='Join' };
+  net=connect(url,()=>net.send({t:'join',code}),m=>{
+    if(m.t==='joined'){ done(); client=new Client(m.id); net.send({t:'up',m:{t:'hello',name:myName,face:myFace}}) }
+    else if(m.t==='error'){ done(); $('joinErr').textContent = m.msg==='full' ? 'That game is full.' : 'No game with that code. Check the code and try again.'; net.close(); net=null }
+    else if(client) client.onMsg(m);
+  },why=>{ done(); if(client){ toast('Disconnected from the game'); endAll() } else $('joinErr').textContent = jMode==='online' ? 'Could not reach the game server. Check your internet.' : 'Could not reach the host. Are you connected to their hotspot?' });
+};
+
+function endAll(){
+  if(host) host.stop(); host=null; client=null; view=null;
+  if(net){ net.close(); net=null }
+  if(NATIVE && NATIVE.stopServer) try{ NATIVE.stopServer() }catch(e){}
+  stopInput(); show('s-home');
+}
+$('leaveLobby').onclick=endAll; $('exitBtn').onclick=endAll;
+$('quitBtn').onclick=()=>{ if(confirmLeave()) endAll() };
+function confirmLeave(){ if($('quitBtn').dataset.armed){ return true } $('quitBtn').dataset.armed='1'; $('quitBtn').textContent='Tap again to leave'; setTimeout(()=>{ delete $('quitBtn').dataset.armed; $('quitBtn').textContent='Leave' },2500); return false }
+
+/* =========================================================
+   Game simulation (runs on the host only)
+   ========================================================= */
+const TICK=50, WORLD=1700, SEG=7, START_LEN=90, SPEED=165, BOOST=310, TURN=4.2, FOOD_N=650, RESPAWN=3000;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const width=len=>Math.min(30,10+Math.sqrt(len)*0.42);
+
+class Sim{
+  constructor(players, durMs){
+    this.worms=new Map(); this.food=new Map(); this.fid=1; this.adds=[]; this.rems=[]; this.events=[];
+    this.end=Date.now()+durMs; this.dur=durMs;
+    for(let i=0;i<FOOD_N;i++) this.addFood();
+    for(const p of players) this.spawn(p);
+  }
+  addFood(x,y,v,c){
+    if(x==null){ const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*(WORLD-30); x=Math.cos(a)*r; y=Math.sin(a)*r }
+    const f={id:this.fid++,x:Math.round(x),y:Math.round(y),v:v||(Math.random()<.12?2:1),c:c==null?Math.floor(Math.random()*COLORS.length):c};
+    this.food.set(f.id,f); this.adds.push([f.id,f.x,f.y,f.v,f.c]); return f;
+  }
+  spawn(p){
+    let best=null, bd=-1;
+    for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*(WORLD-300); const x=Math.cos(a)*r, y=Math.sin(a)*r;
+      let d=1e9; for(const w of this.worms.values()) if(w.alive&&w.id!==p.id) for(let i=0;i<w.path.length;i+=6){ const q=w.path[i]; d=Math.min(d,Math.hypot(q[0]-x,q[1]-y)) }
+      if(d>bd){bd=d;best=[x,y]} }
+    const ang=Math.atan2(-best[1],-best[0])+rnd(-.6,.6);
+    const prev=this.worms.get(p.id);
+    const w={id:p.id,bot:!!p.bot,alive:true,x:best[0],y:best[1],a:ang,ta:ang,len:START_LEN,boost:false,path:[],inv:Date.now()+2000,
+      kills:prev?prev.kills:0,best:prev?prev.best:START_LEN,deaths:prev?prev.deaths:0,dieAt:0,spawned:true,brain:{t:0,wander:ang}};
+    for(let i=0;i<=START_LEN/SEG;i++) w.path.push([w.x-Math.cos(ang)*i*SEG, w.y-Math.sin(ang)*i*SEG]);
+    this.worms.set(p.id,w);
+  }
+  input(id,a,boost){ const w=this.worms.get(id); if(w){ if(a!=null&&isFinite(a)) w.ta=a; w.boost=!!boost } }
+  remove(id){ const w=this.worms.get(id); if(w&&w.alive) this.kill(w,null); this.worms.delete(id) }
+  kill(w,by){
+    w.alive=false; w.dieAt=Date.now(); w.deaths++;
+    for(let i=0;i<w.path.length;i+=2){ const q=w.path[i]; this.addFood(q[0]+rnd(-6,6),q[1]+rnd(-6,6),3,COLORS.indexOf(colorOf(w.id))) }
+    w.path=[];
+    if(by){ const k=this.worms.get(by); if(k) k.kills++ }
+    this.events.push(['k',by,w.id]);
+  }
+  step(){
+    const now=Date.now(), dt=TICK/1000;
+    // bots think
+    for(const w of this.worms.values()) if(w.bot&&w.alive) botThink(this,w,now);
+    // move
+    for(const w of this.worms.values()){
+      if(!w.alive){ if(now-w.dieAt>RESPAWN && now<this.end) this.spawn({id:w.id,bot:w.bot}); continue }
+      let d=((w.ta-w.a+Math.PI*3)%(Math.PI*2))-Math.PI; const mt=TURN*dt*(w.boost?0.8:1);
+      w.a+=Math.max(-mt,Math.min(mt,d));
+      const boosting=w.boost&&w.len>START_LEN*0.8, sp=boosting?BOOST:SPEED;
+      w.x+=Math.cos(w.a)*sp*dt; w.y+=Math.sin(w.a)*sp*dt;
+      if(boosting){ w.len-=16*dt; if(Math.random()<.35){ const t=w.path[w.path.length-1]; if(t) this.addFood(t[0],t[1],1,COLORS.indexOf(colorOf(w.id))) } }
+      w.isBoost=boosting;
+      // path
+      const h=w.path[0]; const dd=Math.hypot(w.x-h[0],w.y-h[1]);
+      if(dd>=SEG){ const n=Math.floor(dd/SEG); for(let i=1;i<=n;i++){ const t=i*SEG/dd; w.path.unshift([h[0]+(w.x-h[0])*t,h[1]+(w.y-h[1])*t]) } }
+      const keep=Math.max(4,Math.ceil(w.len/SEG)); if(w.path.length>keep) w.path.length=keep;
+      w.best=Math.max(w.best,w.len);
+    }
+    // grid of bodies
+    const G=new Map(), cs=60;
+    for(const w of this.worms.values()) if(w.alive){ const r=width(w.len)/2;
+      for(let i=3;i<w.path.length;i++){ const q=w.path[i], key=Math.floor(q[0]/cs)+','+Math.floor(q[1]/cs); let a=G.get(key); if(!a)G.set(key,a=[]); a.push([q[0],q[1],r,w.id]) } }
+    this.grid=G;
+    // collisions
+    const dead=[];
+    for(const w of this.worms.values()){
+      if(!w.alive) continue;
+      if(Math.hypot(w.x,w.y)>WORLD){ dead.push([w,null]); continue }
+      if(now<w.inv) continue;
+      const r=width(w.len)/2, gx=Math.floor(w.x/cs), gy=Math.floor(w.y/cs); let hit=null;
+      for(let ox=-1;ox<=1&&!hit;ox++) for(let oy=-1;oy<=1&&!hit;oy++){ const a=G.get((gx+ox)+','+(gy+oy)); if(!a)continue;
+        for(const s of a){ if(s[3]===w.id) continue; if(Math.hypot(s[0]-w.x,s[1]-w.y)<r*0.8+s[2]){ hit=s[3]; break } } }
+      if(hit!=null) dead.push([w,hit]);
+    }
+    for(const [w,by] of dead) if(w.alive) this.kill(w,by);
+    // eat
+    for(const w of this.worms.values()){
+      if(!w.alive) continue; const r=width(w.len)/2+16;
+      for(const f of this.food.values()){ const dx=f.x-w.x; if(dx>r||dx<-r) continue; const dy=f.y-w.y; if(dy>r||dy<-r) continue;
+        if(dx*dx+dy*dy<r*r){ this.food.delete(f.id); this.rems.push(f.id); w.len+=f.v*3.2 } }
+    }
+    let alive=0; for(const f of this.food.values()) if(f.v===1) alive++;
+    for(let i=alive;i<FOOD_N*0.8;i+=1) this.addFood();
+  }
+  snapshot(){
+    const now=Date.now(), ws=[];
+    for(const w of this.worms.values()){
+      const flags=(w.alive?1:0)|(w.isBoost?2:0)|(now<w.inv?4:0);
+      const row=[w.id,Math.round(w.x*10)/10,Math.round(w.y*10)/10,Math.round(w.a*100)/100,Math.round(w.len),flags];
+      if(w.spawned){ row.push(w.path.flat().map(v=>Math.round(v))); w.spawned=false }
+      ws.push(row);
+    }
+    const s={t:'s',T:Math.max(0,this.end-now),w:ws};
+    if(this.adds.length) s.fa=this.adds; if(this.rems.length) s.fr=this.rems; if(this.events.length) s.ev=this.events;
+    this.adds=[]; this.rems=[]; this.events=[];
+    return s;
+  }
+  fullFood(){ return [...this.food.values()].map(f=>[f.id,f.x,f.y,f.v,f.c]) }
+  results(){ return [...this.worms.values()].map(w=>({id:w.id,len:Math.round(w.alive?w.len:0),best:Math.round(w.best),kills:w.kills,deaths:w.deaths})).sort((a,b)=>b.best-a.best||b.kills-a.kills) }
+}
+
+/* ---------- computer worms ---------- */
+function botThink(sim,w,now){
+  const b=w.brain; if(now<b.t) return; b.t=now+120+Math.random()*80;
+  const look=90+width(w.len)*2;
+  const danger=(a,dist)=>{ const x=w.x+Math.cos(a)*dist, y=w.y+Math.sin(a)*dist;
+    if(Math.hypot(x,y)>WORLD-40) return 1;
+    const cs=60, gx=Math.floor(x/cs), gy=Math.floor(y/cs);
+    for(let ox=-1;ox<=1;ox++) for(let oy=-1;oy<=1;oy++){ const c=sim.grid&&sim.grid.get((gx+ox)+','+(gy+oy)); if(!c)continue;
+      for(const s of c) if(s[3]!==w.id && Math.hypot(s[0]-x,s[1]-y)<s[2]+width(w.len)) return 1 }
+    return 0 };
+  // target: nearest good food cluster
+  let best=null, bs=-1;
+  for(const f of sim.food.values()){ const d=Math.hypot(f.x-w.x,f.y-w.y); if(d>450) continue; const sc=f.v*f.v/(d+30); if(sc>bs){bs=sc;best=f} }
+  let want = best ? Math.atan2(best.y-w.y,best.x-w.x) : (Math.random()<.1 ? (b.wander+=rnd(-1,1)) : b.wander);
+  if(Math.hypot(w.x,w.y)>WORLD-260) want=Math.atan2(-w.y,-w.x)+rnd(-.5,.5);
+  // avoid
+  const cands=[0,.35,-.35,.7,-.7,1.1,-1.1,1.6,-1.6,2.2,-2.2];
+  let pick=want;
+  for(const o of cands){ const a=want+o; if(!danger(a,look)&&!danger(a,look*.5)){ pick=a; break } }
+  if(danger(w.a,look*.6)){ for(const o of cands.slice(3)){ const a=w.a+o; if(!danger(a,look*.6)){ pick=a; break } } }
+  w.ta=pick;
+  w.boost = w.len>180 && best && best.v>=3 && Math.hypot(best.x-w.x,best.y-w.y)<220 && !danger(pick,look*1.6);
+}
+
+/* =========================================================
+   Host: runs the room, the game and its own player
+   ========================================================= */
+let host=null;
+const BOT_NAMES=['Tiger','Mango','Pepper','Rocket','Biscuit','Chili','Zap','Noodle','Jelly'];
+const BOT_FACES=['😎','🤖','👻','🐯','🦊','🐸','🐼','🐵','🐱'];
+function colorOf(id){ const v=view&&view.roster.find(p=>p.id===id); return v?v.color:COLORS[0] }
+
+class Host{
+  constructor(code){
+    this.code=code; this.max=cPlayers; this.min=cMin; this.mode=cMode;
+    this.players=[{id:0,name:myName,face:myFace,color:COLORS[0]}];
+    this.sim=null; this.timer=null;
+  }
+  roster(){ return this.players }
+  broadcast(m){ net.send({t:'to',id:null,m}) }
+  sendTo(id,m){ net.send({t:'to',id,m}) }
+  pushRoster(){ const m={t:'roster',players:this.players,max:this.max,min:this.min}; this.broadcast(m); view.onMsg(m) }
+  onNet(m){
+    if(m.t==='peer'){ /* wait for hello */ }
+    else if(m.t==='left'){ const i=this.players.findIndex(p=>p.id===m.id); if(i>=0){ const p=this.players[i]; this.players.splice(i,1);
+        if(this.sim){ this.sim.remove(m.id); feed(esc(p.name)+' left') } this.pushRoster() } }
+    else if(m.t==='from'){
+      const msg=m.m||{};
+      if(msg.t==='hello'){
+        if(this.sim){ this.sendTo(m.id,{t:'busy'}); return }
+        if(this.players.filter(p=>!p.bot).length>=this.max){ this.sendTo(m.id,{t:'full'}); return }
+        const used=new Set(this.players.map(p=>p.color));
+        this.players.push({id:m.id,name:String(msg.name||'Player').slice(0,12),face:String(msg.face||'').slice(0,40000),color:COLORS.find(c=>!used.has(c))||COLORS[m.id%COLORS.length]});
+        this.pushRoster();
+      } else if(msg.t==='in' && this.sim){ this.sim.input(m.id,msg.a,msg.b) }
+    }
+  }
+  start(){
+    this.players=this.players.filter(p=>!p.bot);
+    const used=new Set(this.players.map(p=>p.color)); let bi=0;
+    while(this.players.length<this.max){ const c=COLORS.find(x=>!used.has(x)); used.add(c);
+      this.players.push({id:-1-bi,name:BOT_NAMES[bi%BOT_NAMES.length],face:'',emoji:BOT_FACES[bi%BOT_FACES.length],color:c,bot:true}); bi++ }
+    this.pushRoster();
+    this.sim=new Sim(this.players,this.min*60000);
+    const m={t:'start',world:WORLD,food:this.sim.fullFood(),dur:this.min*60000};
+    this.broadcast(m); view.onMsg(m);
+    this.timer=setInterval(()=>this.tick(),TICK);
+  }
+  tick(){
+    if(!this.sim) return;
+    this.sim.input(0,input.angle,input.boost);
+    this.sim.step();
+    const s=this.sim.snapshot();
+    this.broadcast(s); view.onMsg(s);
+    if(Date.now()>=this.sim.end){
+      clearInterval(this.timer); this.timer=null;
+      const r={t:'end',results:this.sim.results()}; this.sim=null;
+      this.broadcast(r); view.onMsg(r);
+    }
+  }
+  stop(){ if(this.timer) clearInterval(this.timer); this.timer=null; this.sim=null }
+}
+function startHosting(code){
+  host=new Host(code); view=new View(0,true);
+  host.pushRoster();
+  if(host.mode==='online'){ $('lobbyLbl').textContent='Room code'; $('lobbyCode').textContent=code; $('lobbyCode').style.fontSize=''; $('lobbyHint').textContent='Tell your friends: open Face Worms → Join game → Internet → type this code.' }
+  else { const ip=hostIps[0]||'192.168.43.1'; $('lobbyLbl').textContent='Hotspot address'; $('lobbyCode').textContent=ip; $('lobbyCode').style.fontSize='34px';
+    $('lobbyHint').textContent='Friends: connect to this phone\'s hotspot → Join game → Hotspot. If the address isn\'t filled in, type: '+ip }
+  $('startBtn').hidden=false; $('waitHint').hidden=true; show('s-lobby');
+}
+$('startBtn').onclick=()=>{ if(host) host.start() };
+$('againBtn').onclick=()=>{ if(host){ host.pushRoster(); show('s-lobby') } };
+
+/* =========================================================
+   Client (non-host player)
+   ========================================================= */
+class Client{
+  constructor(id){ this.id=id; view=new View(id,false); $('startBtn').hidden=true; $('waitHint').hidden=false;
+    $('lobbyLbl').textContent='Joined!'; $('lobbyCode').textContent='✓'; $('lobbyCode').style.fontSize=''; $('lobbyHint').textContent='Get ready — the game starts when the host taps Start.'; show('s-lobby') }
+  onMsg(m){
+    if(m.t==='hostgone'){ toast('The host left the game'); endAll(); return }
+    if(m.t==='full'){ toast('That game is full'); endAll(); return }
+    if(m.t==='busy'){ toast('That game has already started — wait for the next round'); endAll(); return }
+    view.onMsg(m);
+  }
+}
+
+/* =========================================================
+   View: what every player sees (host and clients)
+   ========================================================= */
+let view=null;
+const faceImgs=new Map();
+function faceImg(p){ if(!p||!p.face) return null; let im=faceImgs.get(p.face); if(!im){ im=new Image(); im.src=p.face; faceImgs.set(p.face,im) } return im }
+function feed(html){ const d=document.createElement('div'); d.innerHTML=html; $('hudFeed').prepend(d); setTimeout(()=>d.remove(),3300); while($('hudFeed').children.length>3) $('hudFeed').lastChild.remove() }
+
+class View{
+  constructor(myId,isHost){ this.me=myId; this.isHost=isHost; this.roster=[]; this.max=0; this.min=2; this.worms=new Map(); this.food=new Map(); this.T=0; this.playing=false; this.lastSnap=0; this.snapDt=TICK }
+  P(id){ return this.roster.find(p=>p.id===id) }
+  onMsg(m){
+    if(m.t==='roster'){ this.roster=m.players; this.max=m.max; this.min=m.min; this.renderLobby() }
+    else if(m.t==='start'){ this.worms.clear(); this.food.clear(); for(const f of m.food) this.food.set(f[0],{x:f[1],y:f[2],v:f[3],c:f[4],ph:Math.random()*6}); this.T=m.dur; this.playing=true;
+      $('deadBox').hidden=true; $('hudFeed').innerHTML=''; show('game'); startInput(); startRender() }
+    else if(m.t==='s'){ this.applySnap(m) }
+    else if(m.t==='end'){ this.playing=false; stopInput(); this.showResults(m.results) }
+  }
+  renderLobby(){
+    const real=this.roster.filter(p=>!p.bot);
+    $('seatLbl').textContent=`Players ${real.length} / ${this.max}`; $('timeLbl').textContent=`${this.min} min game`;
+    let h=real.map(p=>`<div class="pl"><div class="face" style="border-color:${p.color}">${p.face?`<img src="${p.face}" alt="">`:''}</div><span>${esc(p.name)}${p.id===this.me?' (you)':''}</span></div>`).join('');
+    for(let i=real.length;i<this.max;i++) h+=`<div class="pl empty"><div class="face">?</div><span>waiting…</span></div>`;
+    $('lobbyPlayers').innerHTML=h;
+    if(this.isHost) $('startBtn').textContent = real.length<this.max ? `Start now (${this.max-real.length} computer worm${this.max-real.length>1?'s':''})` : 'Start game';
+  }
+  applySnap(s){
+    const now=performance.now(); this.snapDt=this.lastSnap?Math.min(200,now-this.lastSnap):TICK; this.lastSnap=now; this.T=s.T;
+    if(s.fr) for(const id of s.fr) this.food.delete(id);
+    if(s.fa) for(const f of s.fa) this.food.set(f[0],{x:f[1],y:f[2],v:f[3],c:f[4],ph:Math.random()*6});
+    const seen=new Set();
+    for(const r of s.w){
+      const [id,x,y,a,len,fl,full]=r; seen.add(id);
+      let w=this.worms.get(id); if(!w){ w={id,path:[],px:x,py:y,x,y,len,alive:false}; this.worms.set(id,w) }
+      const alive=!!(fl&1);
+      if(full){ w.path=[]; for(let i=0;i<full.length;i+=2) w.path.push([full[i],full[i+1]]); w.px=x; w.py=y }
+      else if(alive && w.alive){
+        const h=w.path[0]||[x,y]; const dd=Math.hypot(x-h[0],y-h[1]);
+        if(dd>=SEG){ const n=Math.floor(dd/SEG); for(let i=1;i<=n;i++){ const t=i*SEG/dd; w.path.unshift([h[0]+(x-h[0])*t,h[1]+(y-h[1])*t]) } }
+        w.px=w.x; w.py=w.y;
+      }
+      if(!alive){ w.path=[] }
+      w.x=x; w.y=y; w.a=a; w.len=len; w.alive=alive; w.boost=!!(fl&2); w.inv=!!(fl&4); w.t=now;
+      const keep=Math.max(4,Math.ceil(len/SEG)); if(w.path.length>keep) w.path.length=keep;
+      if(id===this.me){ if(!alive && !w.deadAt){ w.deadAt=Date.now() } if(alive) w.deadAt=0 }
+    }
+    for(const id of [...this.worms.keys()]) if(!seen.has(id)) this.worms.delete(id);
+    if(s.ev) for(const e of s.ev){ if(e[0]==='k'){ const v=this.P(e[2]), k=e[1]!=null?this.P(e[1]):null;
+      if(e[2]===this.me) navigator.vibrate&&navigator.vibrate(120);
+      feed(k ? `<b style="color:${k.color}">${esc(k.name)}</b> ate <b style="color:${v?v.color:'#fff'}">${esc(v?v.name:'?')}</b>` : `<b style="color:${v?v.color:'#fff'}">${esc(v?v.name:'?')}</b> hit the wall`) } }
+  }
+  showResults(res){
+    $('resList').innerHTML=res.map((r,i)=>{ const p=this.P(r.id)||{name:'?',color:'#888'};
+      const pic=p.face?`<img src="${p.face}" alt="" style="border:3px solid ${p.color}">`:`<div class="dot" style="background:${p.color};display:grid;place-items:center;font-size:24px">${p.emoji||''}</div>`;
+      return `<div class="r"><span class="n">${i+1}</span>${pic}<span class="nm">${esc(p.name)}${r.id===this.me?' (you)':''}</span><span class="st"><b>${r.best}</b> longest<br>${r.kills} eaten · ${r.deaths} deaths</span></div>` }).join('');
+    $('againBtn').hidden=!this.isHost; $('againHint').hidden=this.isHost;
+    show('s-results');
+  }
+}
+
+/* =========================================================
+   Input: floating joystick (touch), mouse, keyboard
+   ========================================================= */
+const input={angle:0,boost:false,active:false};
+let joyId=null, joyX=0, joyY=0, sendTimer=null, lastSent='';
+function startInput(){
+  input.boost=false; $('boostBtn').classList.remove('on');
+  clearInterval(sendTimer);
+  sendTimer=setInterval(()=>{ if(client&&net){ const k=input.angle.toFixed(2)+(input.boost?'b':''); if(k!==lastSent){ lastSent=k; net.send({t:'up',m:{t:'in',a:+input.angle.toFixed(3),b:input.boost?1:0}}) } } },TICK);
+}
+function stopInput(){ clearInterval(sendTimer); sendTimer=null; stopRender() }
+const gameEl=$('game');
+gameEl.addEventListener('pointerdown',e=>{
+  if(e.target.closest('button')) return;
+  if(e.pointerType==='mouse'){ input.active=true; return }
+  if(joyId!==null) return; joyId=e.pointerId; joyX=e.clientX; joyY=e.clientY;
+  const j=$('joy'); j.style.left=joyX+'px'; j.style.top=joyY+'px'; j.hidden=false; $('joyKnob').style.transform='translate(-50%,-50%)';
+});
+gameEl.addEventListener('pointermove',e=>{
+  if(e.pointerType==='mouse'){ input.angle=Math.atan2(e.clientY-innerHeight/2,e.clientX-innerWidth/2); return }
+  if(e.pointerId!==joyId) return;
+  const dx=e.clientX-joyX, dy=e.clientY-joyY, d=Math.hypot(dx,dy);
+  if(d>6) input.angle=Math.atan2(dy,dx);
+  const k=Math.min(d,40); $('joyKnob').style.transform=`translate(calc(-50% + ${dx/d*k||0}px),calc(-50% + ${dy/d*k||0}px))`;
+});
+const joyEnd=e=>{ if(e.pointerId===joyId){ joyId=null; $('joy').hidden=true } };
+gameEl.addEventListener('pointerup',joyEnd); gameEl.addEventListener('pointercancel',joyEnd);
+gameEl.addEventListener('mousedown',e=>{ if(e.button===0&&!e.target.closest('button')) input.boost=true });
+gameEl.addEventListener('mouseup',()=>{ input.boost=false });
+const bb=$('boostBtn');
+bb.addEventListener('pointerdown',e=>{ e.preventDefault(); input.boost=true; bb.classList.add('on'); try{bb.setPointerCapture(e.pointerId)}catch(x){} });
+const bOff=()=>{ input.boost=false; bb.classList.remove('on') };
+bb.addEventListener('pointerup',bOff); bb.addEventListener('pointercancel',bOff); bb.addEventListener('lostpointercapture',bOff);
+addEventListener('keydown',e=>{ if(e.code==='Space') input.boost=true; if(e.code==='ArrowLeft') input.angle-=0.25; if(e.code==='ArrowRight') input.angle+=0.25 });
+addEventListener('keyup',e=>{ if(e.code==='Space') input.boost=false });
+
+/* =========================================================
+   Rendering
+   ========================================================= */
+const cv=$('cv'), g=cv.getContext('2d');
+let raf=null, cam={x:0,y:0,z:1}, dpr=1;
+function resize(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr }
+addEventListener('resize',resize); resize();
+function startRender(){ stopRender(); const loop=()=>{ draw(); raf=requestAnimationFrame(loop) }; raf=requestAnimationFrame(loop) }
+function stopRender(){ if(raf) cancelAnimationFrame(raf); raf=null }
+function shade(hex,f){ const n=parseInt(hex.slice(1),16); let r=n>>16,gg=n>>8&255,b=n&255; r=Math.round(r*f);gg=Math.round(gg*f);b=Math.round(b*f); return `rgb(${Math.min(255,r)},${Math.min(255,gg)},${Math.min(255,b)})` }
+
+function draw(){
+  if(!view) return;
+  const W=cv.width, H=cv.height, now=performance.now();
+  const alpha=Math.min(1,(now-view.lastSnap)/view.snapDt);
+  const me=view.worms.get(view.me);
+  // camera
+  if(me&&me.alive){ const hx=me.px+(me.x-me.px)*alpha, hy=me.py+(me.y-me.py)*alpha; cam.x+=(hx-cam.x)*0.25; cam.y+=(hy-cam.y)*0.25;
+    const tz=Math.max(0.55,1.05-Math.sqrt(me.len)*0.014); cam.z+=(tz-cam.z)*0.04 }
+  const z=cam.z*dpr*Math.min(1.15,Math.max(0.75,Math.min(W,H)/dpr/700));
+  g.setTransform(1,0,0,1,0,0); g.fillStyle='#0B1020'; g.fillRect(0,0,W,H);
+  g.setTransform(z,0,0,z,W/2-cam.x*z,H/2-cam.y*z);
+  const vx0=cam.x-W/2/z-40, vx1=cam.x+W/2/z+40, vy0=cam.y-H/2/z-40, vy1=cam.y+H/2/z+40;
+  // arena
+  g.fillStyle='#121A36'; g.beginPath(); g.arc(0,0,WORLD,0,Math.PI*2); g.fill();
+  g.fillStyle='#1B2650'; const step=46;
+  for(let x=Math.floor(vx0/step)*step;x<vx1;x+=step) for(let y=Math.floor(vy0/step)*step;y<vy1;y+=step){ if(x*x+y*y<WORLD*WORLD){ g.beginPath(); g.arc(x+((y/step)&1?step/2:0),y,2.2,0,Math.PI*2); g.fill() } }
+  g.lineWidth=14; g.strokeStyle='#FF4F8B'; g.globalAlpha=.55+Math.sin(now/300)*.2; g.beginPath(); g.arc(0,0,WORLD+7,0,Math.PI*2); g.stroke(); g.globalAlpha=1;
+  // food
+  for(const f of view.food.values()){
+    if(f.x<vx0||f.x>vx1||f.y<vy0||f.y>vy1) continue;
+    const r=f.v===1?4.5:f.v===2?6.5:8, c=COLORS[f.c%COLORS.length], p=1+Math.sin(now/260+f.ph)*.18;
+    g.fillStyle=c; g.globalAlpha=.25; g.beginPath(); g.arc(f.x,f.y,r*2.1*p,0,Math.PI*2); g.fill();
+    g.globalAlpha=1; g.beginPath(); g.arc(f.x,f.y,r,0,Math.PI*2); g.fill();
+  }
+  // worms (others first, me on top)
+  const order=[...view.worms.values()].filter(w=>w.alive&&w.path.length).sort((a,b)=>(a.id===view.me)-(b.id===view.me));
+  for(const w of order){
+    const p=view.P(w.id)||{color:'#B6F23C',name:'?'};
+    const hx=w.px+(w.x-w.px)*alpha, hy=w.py+(w.y-w.py)*alpha, wd=width(w.len);
+    if(w.inv && Math.floor(now/120)%2) g.globalAlpha=.45;
+    // body
+    g.lineCap='round'; g.lineJoin='round';
+    g.beginPath(); g.moveTo(hx,hy); for(let i=1;i<w.path.length;i++) g.lineTo(w.path[i][0],w.path[i][1]);
+    g.strokeStyle=shade(p.color,.55); g.lineWidth=wd+4; g.stroke();
+    g.strokeStyle=p.color; g.lineWidth=wd; g.stroke();
+    // stripes
+    g.fillStyle=shade(p.color,1.25);
+    for(let i=4;i<w.path.length;i+=5){ const q=w.path[i]; if(q[0]<vx0||q[0]>vx1||q[1]<vy0||q[1]>vy1) continue; g.beginPath(); g.arc(q[0],q[1],wd*0.28,0,Math.PI*2); g.fill() }
+    if(w.boost){ g.strokeStyle='#fff'; g.globalAlpha*=.25; g.lineWidth=wd+12; g.beginPath(); g.moveTo(hx,hy); for(let i=1;i<Math.min(w.path.length,30);i++) g.lineTo(w.path[i][0],w.path[i][1]); g.stroke(); g.globalAlpha=w.inv&&Math.floor(now/120)%2?.45:1 }
+    // head with face
+    const hr=wd*1.05+5, im=faceImg(p);
+    g.fillStyle=p.color; g.beginPath(); g.arc(hx,hy,hr+3.5,0,Math.PI*2); g.fill();
+    if(im&&im.complete&&im.naturalWidth){ g.save(); g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.clip(); g.translate(hx,hy); g.drawImage(im,-hr,-hr,hr*2,hr*2); g.restore() }
+    else { g.fillStyle=shade(p.color,.7); g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.fill(); if(p.emoji){ g.font=`${hr*1.3}px sans-serif`; g.textAlign='center'; g.textBaseline='middle'; g.fillText(p.emoji,hx,hy+1) } }
+    // name
+    g.font=`800 ${13}px Nunito,sans-serif`; g.textAlign='center'; g.textBaseline='bottom'; g.lineWidth=4; g.strokeStyle='#0B1020'; g.fillStyle='#fff';
+    g.strokeText(p.name,hx,hy-hr-6); g.fillText(p.name,hx,hy-hr-6);
+    g.globalAlpha=1;
+  }
+  // minimap
+  g.setTransform(dpr,0,0,dpr,0,0);
+  const mr=44, mx=innerWidth-mr-14, my=innerHeight-mr-130;
+  g.fillStyle='#0009'; g.beginPath(); g.arc(mx,my,mr+4,0,Math.PI*2); g.fill(); g.strokeStyle='#FF4F8B88'; g.lineWidth=2; g.beginPath(); g.arc(mx,my,mr,0,Math.PI*2); g.stroke();
+  for(const w of view.worms.values()){ if(!w.alive) continue; const p=view.P(w.id); g.fillStyle=p?p.color:'#fff'; const r=w.id===view.me?4.5:3; g.beginPath(); g.arc(mx+w.x/WORLD*mr,my+w.y/WORLD*mr,r,0,Math.PI*2); g.fill(); if(w.id===view.me){ g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke() } }
+  hud(now);
+}
+let hudT=0;
+function hud(now){
+  if(now-hudT<200) return; hudT=now;
+  const s=Math.ceil(view.T/1000); $('hudTimer').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); $('hudTimer').classList.toggle('low',s<=15);
+  const me=view.worms.get(view.me); $('myLen').textContent=me&&me.alive?me.len:0;
+  const list=[...view.worms.values()].map(w=>({w,p:view.P(w.id)})).filter(x=>x.p).sort((a,b)=>(b.w.alive?b.w.len:0)-(a.w.alive?a.w.len:0)).slice(0,6);
+  $('hudBoard').innerHTML=list.map((x,i)=>`<div class="r${x.w.id===view.me?' me':''}"><i>${i+1}</i>${x.p.face?`<img src="${x.p.face}" alt="" style="border:2px solid ${x.p.color}">`:`<span class="dot" style="background:${x.p.color};display:grid;place-items:center;font-size:13px;flex:none;max-width:22px">${x.p.emoji||''}</span>`}<span>${esc(x.p.name)}</span><b>${x.w.alive?x.w.len:'—'}</b></div>`).join('');
+  if(me&&!me.alive&&me.deadAt&&view.playing){ $('deadBox').hidden=false; $('deadCount').textContent=Math.max(1,Math.ceil((RESPAWN-(Date.now()-me.deadAt))/1000)) } else $('deadBox').hidden=true;
+}
+
+/* keep the screen on during games (Android app) */
+document.addEventListener('visibilitychange',()=>{ if(document.hidden&&host&&host.sim) toast('Keep the game open — you are the host!') });
+</script>
+</body>
+</html>

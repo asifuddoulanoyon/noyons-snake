@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground: a lime worm curling around a round face. 108dp canvas, safe zone 66dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#7FA82A" android:strokeWidth="15" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M30,74 C30,60 44,62 50,70 C56,78 70,80 72,66" />
+    <path android:strokeColor="#B6F23C" android:strokeWidth="11" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M30,74 C30,60 44,62 50,70 C56,78 70,80 72,66" />
+    <path android:fillColor="#B6F23C" android:pathData="M72,50m-17,0a17,17 0,1 1,34 0a17,17 0,1 1,-34 0" />
+    <path android:fillColor="#F2C9A0" android:pathData="M72,50m-13,0a13,13 0,1 1,26 0a13,13 0,1 1,-26 0" />
+    <path android:fillColor="#0B1020" android:pathData="M67,47m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#0B1020" android:pathData="M77,47m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:strokeColor="#0B1020" android:strokeWidth="2.2" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M66.5,54 Q72,58.5 77.5,54" />
+</vector>

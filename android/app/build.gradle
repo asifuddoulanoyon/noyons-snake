@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.faceworms.game'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.faceworms.game'
+        minSdk 26
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName '1.0.' + (System.getenv('VERSION_CODE') ?: '1')
+    }
+
+    signingConfigs {
+        // A fixed key so a new APK installs over the old one.
+        shared {
+            storeFile file('faceworms.keystore')
+            storePassword 'faceworms123'
+            keyAlias 'faceworms'
+            keyPassword 'faceworms123'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.shared
+        }
+        debug {
+            signingConfig signingConfigs.shared
+        }
+    }
+
+    sourceSets {
+        // The game itself lives in ../../client and is shared with the web version.
+        main.assets.srcDirs = ['src/main/assets', '../../client']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.7'
+}

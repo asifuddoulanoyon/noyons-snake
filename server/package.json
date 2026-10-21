@@ -1,0 +1,9 @@
+{
+  "name": "worm-game-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Room relay server for the worm game",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
