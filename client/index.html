@@ -108,6 +108,32 @@ button{cursor:pointer}
 .res .nm{flex:1;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .res .st{text-align:right;font-size:13px;color:var(--muted);line-height:1.3}
 .res .st b{font-size:18px;color:var(--ink)}
+.powers{left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));display:flex;gap:8px}
+.powers span{background:#000b;border:2px solid;border-radius:12px;padding:3px 10px;font-size:16px}
+.bigtext{position:absolute;left:50%;top:30%;font-family:var(--f-display);font-size:44px;font-weight:800;text-shadow:0 3px 0 #000a,0 0 22px currentColor;pointer-events:none;animation:bigpop 1.4s ease-out forwards;white-space:nowrap}
+@keyframes bigpop{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}15%{transform:translate(-50%,-50%) scale(1.15);opacity:1}30%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-80%) scale(1)}}
+@media (max-height:520px){
+  .screen{padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  .col{max-width:560px;gap:10px}
+  .logo{font-size:34px;margin:2px 0 0}
+  .card{padding:12px;gap:9px}
+  .btn.big{font-size:19px;padding:10px 16px}
+  .code{font-size:48px}
+  .timer{font-size:24px;padding:0 12px}
+  .board{font-size:12px;padding:6px 8px;gap:3px;min-width:130px}
+  .board .r img,.board .r .dot{width:18px;height:18px}
+  .mine{font-size:13px;padding:4px 10px} .mine b{font-size:19px}
+  .feed{font-size:13px;top:calc(max(10px,env(safe-area-inset-top)) + 40px)}
+  .boost{width:76px;height:76px;font-size:16px}
+  .bigtext{font-size:34px}
+  .dead b{font-size:40px}
+  .camwrap{width:min(72vw,52vh,300px)}
+  #s-home .col{display:grid;grid-template-columns:1.15fr 1fr;max-width:800px;align-items:start;column-gap:16px}
+  #s-home .logo,#s-home .sub{grid-column:1/-1}
+  #s-home .card{grid-row:span 3}
+  #s-home .hint{grid-column:2}
+  .cam{gap:10px}
+}
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:12px;font-weight:700;z-index:40}
 </style>
 </head>
@@ -233,6 +259,8 @@ button{cursor:pointer}
   <div class="hud timer" id="hudTimer">2:00</div>
   <div class="hud board" id="hudBoard"></div>
   <div class="hud feed" id="hudFeed"></div>
+  <div class="hud powers" id="hudPow"></div>
+  <div class="bigtext" id="bigText" hidden></div>
   <div class="joy" id="joy" hidden><i id="joyKnob"></i></div>
   <button class="boost" id="boostBtn" type="button">BOOST</button>
   <button class="quit" id="quitBtn" type="button">Leave</button>
@@ -397,133 +425,178 @@ $('quitBtn').onclick=()=>{ if(confirmLeave()) endAll() };
 function confirmLeave(){ if($('quitBtn').dataset.armed){ return true } $('quitBtn').dataset.armed='1'; $('quitBtn').textContent='Tap again to leave'; setTimeout(()=>{ delete $('quitBtn').dataset.armed; $('quitBtn').textContent='Leave' },2500); return false }
 
 /* =========================================================
-   Game simulation (runs on the host only)
+   Game rules
    ========================================================= */
-const TICK=50, WORLD=1700, SEG=7, START_LEN=90, SPEED=165, BOOST=310, TURN=4.2, FOOD_N=650, RESPAWN=3000;
+const TICK=40, WORLD=2000, SEG=7, START_LEN=90, SPEED=170, BOOST_X=1.85, TURN=4.4;
+const ORB_N=700, FRUIT_N=90, ROCK_N=16, PU_MAX=7, RESPAWN=3000;
+const FRUITS=['🍎','🍊','🍇','🍉','🍓','🍒','🍌','🍑','🥭','🍍','🍋','🍐'];
+const POWERS=[
+  {k:'speed', icon:'⚡', name:'Speed!',       ms:8000,  col:'#FFC93C'},
+  {k:'shield',icon:'🛡️', name:'Shield!',      ms:7000,  col:'#3FC3FF'},
+  {k:'magnet',icon:'🧲', name:'Magnet!',      ms:10000, col:'#FF4F8B'},
+  {k:'double',icon:'×2', name:'Double food!', ms:12000, col:'#B6F23C'},
+  {k:'grow',  icon:'🍄', name:'Mega grow!',   ms:0,     col:'#A879FF'}];
+const F_ALIVE=1,F_BOOST=2,F_INV=4,F_SPEED=8,F_SHIELD=16,F_MAGNET=32,F_DOUBLE=64;
 const rnd=(a,b)=>a+Math.random()*(b-a);
-const width=len=>Math.min(30,10+Math.sqrt(len)*0.42);
+const width=len=>Math.min(40,15+Math.sqrt(len)*0.62);
+const speedOf=(boost,spd)=>SPEED*(spd?1.5:1)*(boost?BOOST_X:1);
+const canBoost=len=>len>START_LEN*0.8;
+function addPath(path,x,y){ const h=path[0]; if(!h){ path.unshift([x,y]); return } const dd=Math.hypot(x-h[0],y-h[1]);
+  if(dd>=SEG){ const n=Math.floor(dd/SEG); for(let i=1;i<=n;i++){ const t=i*SEG/dd; path.unshift([h[0]+(x-h[0])*t,h[1]+(y-h[1])*t]) } } }
+function trimPath(path,len){ const keep=Math.max(4,Math.ceil(len/SEG)); if(path.length>keep) path.length=keep }
 
+/* =========================================================
+   Simulation (runs on the host only)
+   ========================================================= */
 class Sim{
-  constructor(players, durMs){
-    this.worms=new Map(); this.food=new Map(); this.fid=1; this.adds=[]; this.rems=[]; this.events=[];
-    this.end=Date.now()+durMs; this.dur=durMs;
-    for(let i=0;i<FOOD_N;i++) this.addFood();
+  constructor(players,durMs){
+    this.worms=new Map(); this.food=new Map(); this.pu=new Map(); this.fid=1; this.pid=1;
+    this.adds=[]; this.rems=[]; this.puAdds=[]; this.puRems=[]; this.events=[];
+    this.end=Date.now()+durMs; this.nextPu=Date.now()+1500;
+    this.rocks=[];
+    for(let i=0,tries=0;i<ROCK_N&&tries<500;tries++){ const a=Math.random()*Math.PI*2, d=rnd(350,WORLD-160), r=Math.round(rnd(34,78));
+      const x=Math.round(Math.cos(a)*d), y=Math.round(Math.sin(a)*d);
+      if(this.rocks.some(k=>Math.hypot(k[0]-x,k[1]-y)<k[2]+r+160)) continue; this.rocks.push([x,y,r,Math.floor(Math.random()*1e6)]); i++ }
+    for(let i=0;i<ORB_N;i++) this.addFood(0);
+    for(let i=0;i<FRUIT_N;i++) this.addFood(1);
     for(const p of players) this.spawn(p);
   }
-  addFood(x,y,v,c){
-    if(x==null){ const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*(WORLD-30); x=Math.cos(a)*r; y=Math.sin(a)*r }
-    const f={id:this.fid++,x:Math.round(x),y:Math.round(y),v:v||(Math.random()<.12?2:1),c:c==null?Math.floor(Math.random()*COLORS.length):c};
-    this.food.set(f.id,f); this.adds.push([f.id,f.x,f.y,f.v,f.c]); return f;
+  freeSpot(margin,inner=0){ for(let k=0;k<40;k++){ const a=Math.random()*Math.PI*2, r=Math.sqrt(rnd(inner*inner/(WORLD*WORLD),1))*(WORLD-margin-20);
+      const x=Math.cos(a)*r, y=Math.sin(a)*r; if(!this.rocks.some(q=>Math.hypot(q[0]-x,q[1]-y)<q[2]+margin)) return [x,y] } return [0,0] }
+  addFood(kind,x,y,c){
+    if(x==null) [x,y]=this.freeSpot(14);
+    if(c==null) c = kind===1 ? Math.floor(Math.random()*FRUITS.length) : Math.floor(Math.random()*COLORS.length);
+    const f={id:this.fid++,x:Math.round(x),y:Math.round(y),k:kind,c,v:kind===0?1:kind===1?4:2.5};
+    this.food.set(f.id,f); this.adds.push([f.id,f.x,f.y,f.k,f.c]); return f;
   }
+  addPu(){ const [x,y]=this.freeSpot(60,250); const t=Math.floor(Math.random()*POWERS.length); const p={id:this.pid++,x:Math.round(x),y:Math.round(y),t};
+    this.pu.set(p.id,p); this.puAdds.push([p.id,p.x,p.y,p.t]) }
   spawn(p){
-    let best=null, bd=-1;
-    for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*(WORLD-300); const x=Math.cos(a)*r, y=Math.sin(a)*r;
-      let d=1e9; for(const w of this.worms.values()) if(w.alive&&w.id!==p.id) for(let i=0;i<w.path.length;i+=6){ const q=w.path[i]; d=Math.min(d,Math.hypot(q[0]-x,q[1]-y)) }
-      if(d>bd){bd=d;best=[x,y]} }
-    const ang=Math.atan2(-best[1],-best[0])+rnd(-.6,.6);
-    const prev=this.worms.get(p.id);
-    const w={id:p.id,bot:!!p.bot,alive:true,x:best[0],y:best[1],a:ang,ta:ang,len:START_LEN,boost:false,path:[],inv:Date.now()+2000,
-      kills:prev?prev.kills:0,best:prev?prev.best:START_LEN,deaths:prev?prev.deaths:0,dieAt:0,spawned:true,brain:{t:0,wander:ang}};
+    let best=[0,0], bd=-1;
+    for(let k=0;k<16;k++){ const s=this.freeSpot(140); let d=1e9;
+      for(const w of this.worms.values()) if(w.alive&&w.id!==p.id) for(let i=0;i<w.path.length;i+=5){ const q=w.path[i]; d=Math.min(d,Math.hypot(q[0]-s[0],q[1]-s[1])) }
+      if(d>bd){bd=d;best=s} }
+    const ang=Math.atan2(-best[1],-best[0])+rnd(-.6,.6), prev=this.worms.get(p.id);
+    const w={id:p.id,bot:!!p.bot,alive:true,x:best[0],y:best[1],a:ang,ta:ang,len:START_LEN,boost:false,path:[],inv:Date.now()+2500,
+      life:(prev?prev.life:0)+1,hasR:false,kills:prev?prev.kills:0,best:prev?prev.best:START_LEN,deaths:prev?prev.deaths:0,dieAt:0,spawned:true,
+      pw:{speed:0,shield:0,magnet:0,double:0},brain:{t:0,wander:ang}};
     for(let i=0;i<=START_LEN/SEG;i++) w.path.push([w.x-Math.cos(ang)*i*SEG, w.y-Math.sin(ang)*i*SEG]);
     this.worms.set(p.id,w);
   }
-  input(id,a,boost){ const w=this.worms.get(id); if(w){ if(a!=null&&isFinite(a)) w.ta=a; w.boost=!!boost } }
+  move(id,x,y,a,b,life){ const w=this.worms.get(id); if(!w||!w.alive||life!==w.life||!isFinite(x)||!isFinite(y)) return; w.rx=x; w.ry=y; w.ra=a; w.rb=!!b; w.hasR=true }
   remove(id){ const w=this.worms.get(id); if(w&&w.alive) this.kill(w,null); this.worms.delete(id) }
   kill(w,by){
     w.alive=false; w.dieAt=Date.now(); w.deaths++;
-    for(let i=0;i<w.path.length;i+=2){ const q=w.path[i]; this.addFood(q[0]+rnd(-6,6),q[1]+rnd(-6,6),3,COLORS.indexOf(colorOf(w.id))) }
-    w.path=[];
-    if(by){ const k=this.worms.get(by); if(k) k.kills++ }
-    this.events.push(['k',by,w.id]);
+    const c=COLORS.indexOf(colorOf(w.id));
+    for(let i=0;i<w.path.length;i+=2){ const q=w.path[i]; this.addFood(2,q[0]+rnd(-7,7),q[1]+rnd(-7,7),c) }
+    this.events.push(['k',by,w.id,Math.round(w.x),Math.round(w.y)]);
+    w.path=[]; w.hasR=false;
+    if(by!=null){ const k=this.worms.get(by); if(k) k.kills++ }
   }
   step(){
     const now=Date.now(), dt=TICK/1000;
-    // bots think
     for(const w of this.worms.values()) if(w.bot&&w.alive) botThink(this,w,now);
-    // move
     for(const w of this.worms.values()){
       if(!w.alive){ if(now-w.dieAt>RESPAWN && now<this.end) this.spawn({id:w.id,bot:w.bot}); continue }
-      let d=((w.ta-w.a+Math.PI*3)%(Math.PI*2))-Math.PI; const mt=TURN*dt*(w.boost?0.8:1);
-      w.a+=Math.max(-mt,Math.min(mt,d));
-      const boosting=w.boost&&w.len>START_LEN*0.8, sp=boosting?BOOST:SPEED;
-      w.x+=Math.cos(w.a)*sp*dt; w.y+=Math.sin(w.a)*sp*dt;
-      if(boosting){ w.len-=16*dt; if(Math.random()<.35){ const t=w.path[w.path.length-1]; if(t) this.addFood(t[0],t[1],1,COLORS.indexOf(colorOf(w.id))) } }
+      const spd=now<w.pw.speed; let boosting=false;
+      if(w.hasR && !w.bot){
+        boosting=w.rb&&canBoost(w.len);
+        const dx=w.rx-w.x, dy=w.ry-w.y, d=Math.hypot(dx,dy), maxd=speedOf(true,true)*dt*5;
+        if(d>maxd){ w.x+=dx/d*maxd; w.y+=dy/d*maxd } else { w.x=w.rx; w.y=w.ry }
+        w.a=w.ra;
+      } else {
+        let d=((w.ta-w.a+Math.PI*3)%(Math.PI*2))-Math.PI; const mt=TURN*dt*(w.boost?0.8:1);
+        w.a+=Math.max(-mt,Math.min(mt,d));
+        boosting=w.boost&&canBoost(w.len); const sp=speedOf(boosting,spd);
+        w.x+=Math.cos(w.a)*sp*dt; w.y+=Math.sin(w.a)*sp*dt;
+      }
+      if(boosting&&!spd){ w.len-=15*dt; if(Math.random()<.3){ const t=w.path[w.path.length-1]; if(t) this.addFood(2,t[0],t[1],COLORS.indexOf(colorOf(w.id))) } }
       w.isBoost=boosting;
-      // path
-      const h=w.path[0]; const dd=Math.hypot(w.x-h[0],w.y-h[1]);
-      if(dd>=SEG){ const n=Math.floor(dd/SEG); for(let i=1;i<=n;i++){ const t=i*SEG/dd; w.path.unshift([h[0]+(w.x-h[0])*t,h[1]+(w.y-h[1])*t]) } }
-      const keep=Math.max(4,Math.ceil(w.len/SEG)); if(w.path.length>keep) w.path.length=keep;
+      addPath(w.path,w.x,w.y); trimPath(w.path,w.len);
       w.best=Math.max(w.best,w.len);
     }
-    // grid of bodies
-    const G=new Map(), cs=60;
+    // bodies grid
+    const G=new Map(), cs=64;
     for(const w of this.worms.values()) if(w.alive){ const r=width(w.len)/2;
-      for(let i=3;i<w.path.length;i++){ const q=w.path[i], key=Math.floor(q[0]/cs)+','+Math.floor(q[1]/cs); let a=G.get(key); if(!a)G.set(key,a=[]); a.push([q[0],q[1],r,w.id]) } }
+      for(let i=3;i<w.path.length;i++){ const q=w.path[i], key=Math.floor(q[0]/cs)*4096+Math.floor(q[1]/cs); let a=G.get(key); if(!a)G.set(key,a=[]); a.push([q[0],q[1],r,w.id]) } }
     this.grid=G;
-    // collisions
     const dead=[];
     for(const w of this.worms.values()){
       if(!w.alive) continue;
-      if(Math.hypot(w.x,w.y)>WORLD){ dead.push([w,null]); continue }
-      if(now<w.inv) continue;
-      const r=width(w.len)/2, gx=Math.floor(w.x/cs), gy=Math.floor(w.y/cs); let hit=null;
-      for(let ox=-1;ox<=1&&!hit;ox++) for(let oy=-1;oy<=1&&!hit;oy++){ const a=G.get((gx+ox)+','+(gy+oy)); if(!a)continue;
+      const r=width(w.len)/2;
+      if(Math.hypot(w.x,w.y)>WORLD-r*0.5){ dead.push([w,null]); continue }
+      if(now<w.inv||now<w.pw.shield) continue;
+      if(this.rocks.some(q=>Math.hypot(q[0]-w.x,q[1]-w.y)<q[2]+r*0.6)){ dead.push([w,null]); continue }
+      const gx=Math.floor(w.x/cs), gy=Math.floor(w.y/cs); let hit=null;
+      for(let ox=-1;ox<=1&&hit==null;ox++) for(let oy=-1;oy<=1&&hit==null;oy++){ const a=G.get((gx+ox)*4096+(gy+oy)); if(!a)continue;
         for(const s of a){ if(s[3]===w.id) continue; if(Math.hypot(s[0]-w.x,s[1]-w.y)<r*0.8+s[2]){ hit=s[3]; break } } }
       if(hit!=null) dead.push([w,hit]);
     }
     for(const [w,by] of dead) if(w.alive) this.kill(w,by);
-    // eat
+    // eat + power-ups
     for(const w of this.worms.values()){
-      if(!w.alive) continue; const r=width(w.len)/2+16;
+      if(!w.alive) continue;
+      const r=width(w.len)/2+16+(now<w.pw.magnet?150:0), mul=now<w.pw.double?2:1;
       for(const f of this.food.values()){ const dx=f.x-w.x; if(dx>r||dx<-r) continue; const dy=f.y-w.y; if(dy>r||dy<-r) continue;
-        if(dx*dx+dy*dy<r*r){ this.food.delete(f.id); this.rems.push(f.id); w.len+=f.v*3.2 } }
+        if(dx*dx+dy*dy<r*r){ this.food.delete(f.id); this.rems.push([f.id,w.id]); w.len+=f.v*3.2*mul } }
+      const pr=width(w.len)/2+24;
+      for(const p of this.pu.values()) if(Math.hypot(p.x-w.x,p.y-w.y)<pr){
+        this.pu.delete(p.id); this.puRems.push(p.id); const P=POWERS[p.t];
+        if(P.k==='grow') w.len+=70; else w.pw[P.k]=now+P.ms;
+        this.events.push(['p',w.id,p.t]);
+      }
     }
-    let alive=0; for(const f of this.food.values()) if(f.v===1) alive++;
-    for(let i=alive;i<FOOD_N*0.8;i+=1) this.addFood();
+    let orbs=0, fruits=0; for(const f of this.food.values()){ if(f.k===0) orbs++; else if(f.k===1) fruits++ }
+    for(let i=orbs;i<ORB_N*0.85;i++) this.addFood(0);
+    for(let i=fruits;i<FRUIT_N;i++) this.addFood(1);
+    if(now>this.nextPu){ if(this.pu.size<PU_MAX) this.addPu(); this.nextPu=now+3500 }
   }
+  flags(w,now){ return (w.alive?F_ALIVE:0)|(w.isBoost?F_BOOST:0)|(now<w.inv?F_INV:0)|(now<w.pw.speed?F_SPEED:0)|(now<w.pw.shield?F_SHIELD:0)|(now<w.pw.magnet?F_MAGNET:0)|(now<w.pw.double?F_DOUBLE:0) }
   snapshot(){
     const now=Date.now(), ws=[];
     for(const w of this.worms.values()){
-      const flags=(w.alive?1:0)|(w.isBoost?2:0)|(now<w.inv?4:0);
-      const row=[w.id,Math.round(w.x*10)/10,Math.round(w.y*10)/10,Math.round(w.a*100)/100,Math.round(w.len),flags];
+      const row=[w.id,Math.round(w.x*10)/10,Math.round(w.y*10)/10,Math.round(w.a*100)/100,Math.round(w.len),this.flags(w,now),w.life];
       if(w.spawned){ row.push(w.path.flat().map(v=>Math.round(v))); w.spawned=false }
       ws.push(row);
     }
     const s={t:'s',T:Math.max(0,this.end-now),w:ws};
-    if(this.adds.length) s.fa=this.adds; if(this.rems.length) s.fr=this.rems; if(this.events.length) s.ev=this.events;
-    this.adds=[]; this.rems=[]; this.events=[];
+    if(this.adds.length) s.fa=this.adds; if(this.rems.length) s.fr=this.rems;
+    if(this.puAdds.length) s.pa=this.puAdds; if(this.puRems.length) s.pr=this.puRems;
+    if(this.events.length) s.ev=this.events;
+    this.adds=[]; this.rems=[]; this.puAdds=[]; this.puRems=[]; this.events=[];
     return s;
   }
-  fullFood(){ return [...this.food.values()].map(f=>[f.id,f.x,f.y,f.v,f.c]) }
+  fullState(){ return { food:[...this.food.values()].map(f=>[f.id,f.x,f.y,f.k,f.c]), pu:[...this.pu.values()].map(p=>[p.id,p.x,p.y,p.t]), rocks:this.rocks } }
   results(){ return [...this.worms.values()].map(w=>({id:w.id,len:Math.round(w.alive?w.len:0),best:Math.round(w.best),kills:w.kills,deaths:w.deaths})).sort((a,b)=>b.best-a.best||b.kills-a.kills) }
 }
 
-/* ---------- computer worms ---------- */
+/* ---------- computer snakes ---------- */
 function botThink(sim,w,now){
-  const b=w.brain; if(now<b.t) return; b.t=now+120+Math.random()*80;
-  const look=90+width(w.len)*2;
+  const b=w.brain; if(now<b.t) return; b.t=now+110+Math.random()*70;
+  const wd=width(w.len), look=95+wd*2, shield=now<w.pw.shield;
   const danger=(a,dist)=>{ const x=w.x+Math.cos(a)*dist, y=w.y+Math.sin(a)*dist;
-    if(Math.hypot(x,y)>WORLD-40) return 1;
-    const cs=60, gx=Math.floor(x/cs), gy=Math.floor(y/cs);
-    for(let ox=-1;ox<=1;ox++) for(let oy=-1;oy<=1;oy++){ const c=sim.grid&&sim.grid.get((gx+ox)+','+(gy+oy)); if(!c)continue;
-      for(const s of c) if(s[3]!==w.id && Math.hypot(s[0]-x,s[1]-y)<s[2]+width(w.len)) return 1 }
+    if(Math.hypot(x,y)>WORLD-50) return 1;
+    if(shield) return 0;
+    for(const q of sim.rocks) if(Math.hypot(q[0]-x,q[1]-y)<q[2]+wd+12) return 1;
+    const cs=64, gx=Math.floor(x/cs), gy=Math.floor(y/cs);
+    for(let ox=-1;ox<=1;ox++) for(let oy=-1;oy<=1;oy++){ const c=sim.grid&&sim.grid.get((gx+ox)*4096+(gy+oy)); if(!c)continue;
+      for(const s of c) if(s[3]!==w.id && Math.hypot(s[0]-x,s[1]-y)<s[2]+wd) return 1 }
     return 0 };
-  // target: nearest good food cluster
   let best=null, bs=-1;
-  for(const f of sim.food.values()){ const d=Math.hypot(f.x-w.x,f.y-w.y); if(d>450) continue; const sc=f.v*f.v/(d+30); if(sc>bs){bs=sc;best=f} }
+  for(const p of sim.pu.values()){ const d=Math.hypot(p.x-w.x,p.y-w.y); if(d<600){ const sc=30/(d+30); if(sc>bs){bs=sc;best=p} } }
+  for(const f of sim.food.values()){ const d=Math.hypot(f.x-w.x,f.y-w.y); if(d>450) continue; const sc=f.v*f.v/(d+30)*0.25; if(sc>bs){bs=sc;best=f} }
   let want = best ? Math.atan2(best.y-w.y,best.x-w.x) : (Math.random()<.1 ? (b.wander+=rnd(-1,1)) : b.wander);
-  if(Math.hypot(w.x,w.y)>WORLD-260) want=Math.atan2(-w.y,-w.x)+rnd(-.5,.5);
-  // avoid
-  const cands=[0,.35,-.35,.7,-.7,1.1,-1.1,1.6,-1.6,2.2,-2.2];
+  if(Math.hypot(w.x,w.y)>WORLD-280) want=Math.atan2(-w.y,-w.x)+rnd(-.5,.5);
+  const cands=[0,.35,-.35,.7,-.7,1.1,-1.1,1.6,-1.6,2.2,-2.2,2.8];
   let pick=want;
   for(const o of cands){ const a=want+o; if(!danger(a,look)&&!danger(a,look*.5)){ pick=a; break } }
   if(danger(w.a,look*.6)){ for(const o of cands.slice(3)){ const a=w.a+o; if(!danger(a,look*.6)){ pick=a; break } } }
   w.ta=pick;
-  w.boost = w.len>180 && best && best.v>=3 && Math.hypot(best.x-w.x,best.y-w.y)<220 && !danger(pick,look*1.6);
+  w.boost = w.len>170 && best && (best.t!=null || best.v>=2.5) && Math.hypot(best.x-w.x,best.y-w.y)<240 && !danger(pick,look*1.7);
 }
 
 /* =========================================================
-   Host: runs the room, the game and its own player
+   Host: runs the room and the game
    ========================================================= */
 let host=null;
 const BOT_NAMES=['Tiger','Mango','Pepper','Rocket','Biscuit','Chili','Zap','Noodle','Jelly'];
@@ -536,23 +609,22 @@ class Host{
     this.players=[{id:0,name:myName,face:myFace,color:COLORS[0]}];
     this.sim=null; this.timer=null;
   }
-  roster(){ return this.players }
   broadcast(m){ net.send({t:'to',id:null,m}) }
   sendTo(id,m){ net.send({t:'to',id,m}) }
   pushRoster(){ const m={t:'roster',players:this.players,max:this.max,min:this.min}; this.broadcast(m); view.onMsg(m) }
   onNet(m){
-    if(m.t==='peer'){ /* wait for hello */ }
-    else if(m.t==='left'){ const i=this.players.findIndex(p=>p.id===m.id); if(i>=0){ const p=this.players[i]; this.players.splice(i,1);
+    if(m.t==='left'){ const i=this.players.findIndex(p=>p.id===m.id); if(i>=0){ const p=this.players[i]; this.players.splice(i,1);
         if(this.sim){ this.sim.remove(m.id); feed(esc(p.name)+' left') } this.pushRoster() } }
     else if(m.t==='from'){
       const msg=m.m||{};
+      if(msg.t==='mv'){ if(this.sim) this.sim.move(m.id,+msg.x,+msg.y,+msg.a,msg.b,msg.l); return }
       if(msg.t==='hello'){
         if(this.sim){ this.sendTo(m.id,{t:'busy'}); return }
         if(this.players.filter(p=>!p.bot).length>=this.max){ this.sendTo(m.id,{t:'full'}); return }
         const used=new Set(this.players.map(p=>p.color));
         this.players.push({id:m.id,name:String(msg.name||'Player').slice(0,12),face:String(msg.face||'').slice(0,40000),color:COLORS.find(c=>!used.has(c))||COLORS[m.id%COLORS.length]});
         this.pushRoster();
-      } else if(msg.t==='in' && this.sim){ this.sim.input(m.id,msg.a,msg.b) }
+      }
     }
   }
   start(){
@@ -562,13 +634,13 @@ class Host{
       this.players.push({id:-1-bi,name:BOT_NAMES[bi%BOT_NAMES.length],face:'',emoji:BOT_FACES[bi%BOT_FACES.length],color:c,bot:true}); bi++ }
     this.pushRoster();
     this.sim=new Sim(this.players,this.min*60000);
-    const m={t:'start',world:WORLD,food:this.sim.fullFood(),dur:this.min*60000};
+    const m={t:'start',dur:this.min*60000,...this.sim.fullState()};
     this.broadcast(m); view.onMsg(m);
-    this.timer=setInterval(()=>this.tick(),TICK);
+    clearInterval(this.timer); this.timer=setInterval(()=>this.tick(),TICK);
   }
   tick(){
     if(!this.sim) return;
-    this.sim.input(0,input.angle,input.boost);
+    if(mover.alive) this.sim.move(0,mover.x,mover.y,mover.a,mover.boost,mover.life);
     this.sim.step();
     const s=this.sim.snapshot();
     this.broadcast(s); view.onMsg(s);
@@ -606,22 +678,44 @@ class Client{
 }
 
 /* =========================================================
+   My own snake moves right here on my phone (no waiting for
+   the network); the host only checks eating and crashes.
+   ========================================================= */
+const mover={alive:false,x:0,y:0,a:0,life:0,path:[],len:START_LEN,flags:0,boost:false};
+function moverStep(dt){
+  if(!mover.alive) return;
+  let d=((input.angle-mover.a+Math.PI*3)%(Math.PI*2))-Math.PI; const mt=TURN*dt*(mover.boost?0.8:1);
+  mover.a+=Math.max(-mt,Math.min(mt,d));
+  mover.boost=input.boost&&canBoost(mover.len);
+  const sp=speedOf(mover.boost,mover.flags&F_SPEED);
+  mover.x+=Math.cos(mover.a)*sp*dt; mover.y+=Math.sin(mover.a)*sp*dt;
+  addPath(mover.path,mover.x,mover.y); trimPath(mover.path,mover.len);
+}
+
+/* =========================================================
    View: what every player sees (host and clients)
    ========================================================= */
 let view=null;
 const faceImgs=new Map();
 function faceImg(p){ if(!p||!p.face) return null; let im=faceImgs.get(p.face); if(!im){ im=new Image(); im.src=p.face; faceImgs.set(p.face,im) } return im }
 function feed(html){ const d=document.createElement('div'); d.innerHTML=html; $('hudFeed').prepend(d); setTimeout(()=>d.remove(),3300); while($('hudFeed').children.length>3) $('hudFeed').lastChild.remove() }
+const INTERP=110;
 
 class View{
-  constructor(myId,isHost){ this.me=myId; this.isHost=isHost; this.roster=[]; this.max=0; this.min=2; this.worms=new Map(); this.food=new Map(); this.T=0; this.playing=false; this.lastSnap=0; this.snapDt=TICK }
+  constructor(myId,isHost){ this.me=myId; this.isHost=isHost; this.roster=[]; this.max=0; this.min=2; this.worms=new Map(); this.food=new Map(); this.pu=new Map(); this.rocks=[]; this.T=0; this.playing=false; this.myPow={} }
   P(id){ return this.roster.find(p=>p.id===id) }
   onMsg(m){
     if(m.t==='roster'){ this.roster=m.players; this.max=m.max; this.min=m.min; this.renderLobby() }
-    else if(m.t==='start'){ this.worms.clear(); this.food.clear(); for(const f of m.food) this.food.set(f[0],{x:f[1],y:f[2],v:f[3],c:f[4],ph:Math.random()*6}); this.T=m.dur; this.playing=true;
-      $('deadBox').hidden=true; $('hudFeed').innerHTML=''; show('game'); startInput(); startRender() }
+    else if(m.t==='start'){
+      this.worms.clear(); this.food.clear(); this.pu.clear(); this.myPow={}; particles.length=0;
+      for(const f of m.food) this.food.set(f[0],{x:f[1],y:f[2],k:f[3],c:f[4],ph:Math.random()*6});
+      for(const p of m.pu) this.pu.set(p[0],{x:p[1],y:p[2],t:p[3],ph:Math.random()*6});
+      this.rocks=m.rocks; buildRocks(m.rocks);
+      this.T=m.dur; this.playing=true; mover.alive=false;
+      $('deadBox').hidden=true; $('hudFeed').innerHTML=''; $('hudPow').innerHTML=''; show('game'); startInput(); startRender();
+    }
     else if(m.t==='s'){ this.applySnap(m) }
-    else if(m.t==='end'){ this.playing=false; stopInput(); this.showResults(m.results) }
+    else if(m.t==='end'){ this.playing=false; mover.alive=false; stopInput(); this.showResults(m.results) }
   }
   renderLobby(){
     const real=this.roster.filter(p=>!p.bot);
@@ -632,29 +726,46 @@ class View{
     if(this.isHost) $('startBtn').textContent = real.length<this.max ? `Start now (${this.max-real.length} computer snake${this.max-real.length>1?'s':''})` : 'Start game';
   }
   applySnap(s){
-    const now=performance.now(); this.snapDt=this.lastSnap?Math.min(200,now-this.lastSnap):TICK; this.lastSnap=now; this.T=s.T;
-    if(s.fr) for(const id of s.fr) this.food.delete(id);
-    if(s.fa) for(const f of s.fa) this.food.set(f[0],{x:f[1],y:f[2],v:f[3],c:f[4],ph:Math.random()*6});
+    const now=performance.now(); this.T=s.T;
+    if(s.fr) for(const [id,by] of s.fr){ const f=this.food.get(id); if(f){ this.food.delete(id); const w=this.worms.get(by); if(w&&!f.gone) eatFx(f,by) } }
+    if(s.fa) for(const f of s.fa) this.food.set(f[0],{x:f[1],y:f[2],k:f[3],c:f[4],ph:Math.random()*6,born:now});
+    if(s.pr) for(const id of s.pr) this.pu.delete(id);
+    if(s.pa) for(const p of s.pa) this.pu.set(p[0],{x:p[1],y:p[2],t:p[3],ph:Math.random()*6,born:now});
     const seen=new Set();
     for(const r of s.w){
-      const [id,x,y,a,len,fl,full]=r; seen.add(id);
-      let w=this.worms.get(id); if(!w){ w={id,path:[],px:x,py:y,x,y,len,alive:false}; this.worms.set(id,w) }
-      const alive=!!(fl&1);
-      if(full){ w.path=[]; for(let i=0;i<full.length;i+=2) w.path.push([full[i],full[i+1]]); w.px=x; w.py=y }
-      else if(alive && w.alive){
-        const h=w.path[0]||[x,y]; const dd=Math.hypot(x-h[0],y-h[1]);
-        if(dd>=SEG){ const n=Math.floor(dd/SEG); for(let i=1;i<=n;i++){ const t=i*SEG/dd; w.path.unshift([h[0]+(x-h[0])*t,h[1]+(y-h[1])*t]) } }
-        w.px=w.x; w.py=w.y;
+      const [id,x,y,a,len,fl,life,full]=r; seen.add(id);
+      let w=this.worms.get(id); if(!w){ w={id,path:[],buf:[],alive:false}; this.worms.set(id,w) }
+      const alive=!!(fl&F_ALIVE);
+      w.len=len; w.flags=fl; w.life=life;
+      if(id===this.me){
+        mover.len=len; mover.flags=fl;
+        if(full){ mover.path=[]; for(let i=0;i<full.length;i+=2) mover.path.push([full[i],full[i+1]]); mover.x=x; mover.y=y; mover.a=a; input.angle=a; mover.life=life; mover.alive=alive }
+        else if(!alive){ mover.alive=false }
+        else if(mover.alive && Math.hypot(mover.x-x,mover.y-y)>320){ mover.x=x; mover.y=y }
+        if(!alive && !w.deadAt) w.deadAt=Date.now(); if(alive) w.deadAt=0;
+        w.alive=alive; continue;
       }
-      if(!alive){ w.path=[] }
-      w.x=x; w.y=y; w.a=a; w.len=len; w.alive=alive; w.boost=!!(fl&2); w.inv=!!(fl&4); w.t=now;
-      const keep=Math.max(4,Math.ceil(len/SEG)); if(w.path.length>keep) w.path.length=keep;
-      if(id===this.me){ if(!alive && !w.deadAt){ w.deadAt=Date.now() } if(alive) w.deadAt=0 }
+      if(full){ w.path=[]; for(let i=0;i<full.length;i+=2) w.path.push([full[i],full[i+1]]); w.buf=[] }
+      else if(alive && w.alive) addPath(w.path,x,y);
+      if(!alive) w.path=[];
+      w.alive=alive; w.buf.push([now,x,y]); if(w.buf.length>12) w.buf.shift();
+      trimPath(w.path,len);
     }
     for(const id of [...this.worms.keys()]) if(!seen.has(id)) this.worms.delete(id);
-    if(s.ev) for(const e of s.ev){ if(e[0]==='k'){ const v=this.P(e[2]), k=e[1]!=null?this.P(e[1]):null;
-      if(e[2]===this.me) navigator.vibrate&&navigator.vibrate(120);
-      feed(k ? `<b style="color:${k.color}">${esc(k.name)}</b> ate <b style="color:${v?v.color:'#fff'}">${esc(v?v.name:'?')}</b>` : `<b style="color:${v?v.color:'#fff'}">${esc(v?v.name:'?')}</b> hit the wall`) } }
+    if(s.ev) for(const e of s.ev){
+      if(e[0]==='k'){ const v=this.P(e[2]), k=e[1]!=null?this.P(e[1]):null; burst(e[3],e[4],v?v.color:'#fff');
+        if(e[2]===this.me){ navigator.vibrate&&navigator.vibrate(150); this.myPow={} }
+        feed(k ? `<b style="color:${k.color}">${esc(k.name)}</b> ate <b style="color:${v?v.color:'#fff'}">${esc(v?v.name:'?')}</b>` : `<b style="color:${v?v.color:'#fff'}">${esc(v?v.name:'?')}</b> crashed`) }
+      else if(e[0]==='p'){ const P=POWERS[e[2]];
+        if(e[1]===this.me){ if(P.ms) this.myPow[P.k]=Date.now()+P.ms; bigText(P.icon+' '+P.name,P.col); navigator.vibrate&&navigator.vibrate(40) } }
+    }
+  }
+  headOf(w,now){
+    if(w.id===this.me) return [mover.x,mover.y];
+    const rt=now-INTERP, b=w.buf; if(!b.length) return w.path[0]||[0,0];
+    if(rt<=b[0][0]) return [b[0][1],b[0][2]];
+    for(let i=b.length-1;i>0;i--){ if(b[i-1][0]<=rt){ const A=b[i-1],B=b[i]; if(rt>=B[0]) return [B[1],B[2]]; const t=(rt-A[0])/(B[0]-A[0]); return [A[1]+(B[1]-A[1])*t, A[2]+(B[2]-A[2])*t] } }
+    const L=b[b.length-1]; return [L[1],L[2]];
   }
   showResults(res){
     $('resList').innerHTML=res.map((r,i)=>{ const p=this.P(r.id)||{name:'?',color:'#888'};
@@ -668,18 +779,18 @@ class View{
 /* =========================================================
    Input: floating joystick (touch), mouse, keyboard
    ========================================================= */
-const input={angle:0,boost:false,active:false};
-let joyId=null, joyX=0, joyY=0, sendTimer=null, lastSent='';
+const input={angle:0,boost:false};
+let joyId=null, joyX=0, joyY=0, sendTimer=null;
 function startInput(){
   input.boost=false; $('boostBtn').classList.remove('on');
   clearInterval(sendTimer);
-  sendTimer=setInterval(()=>{ if(client&&net){ const k=input.angle.toFixed(2)+(input.boost?'b':''); if(k!==lastSent){ lastSent=k; net.send({t:'up',m:{t:'in',a:+input.angle.toFixed(3),b:input.boost?1:0}}) } } },TICK);
+  sendTimer=setInterval(()=>{ if(client&&net&&mover.alive) net.send({t:'up',m:{t:'mv',x:Math.round(mover.x*10)/10,y:Math.round(mover.y*10)/10,a:Math.round(mover.a*1000)/1000,b:mover.boost?1:0,l:mover.life}}) },TICK);
 }
 function stopInput(){ clearInterval(sendTimer); sendTimer=null; stopRender() }
 const gameEl=$('game');
 gameEl.addEventListener('pointerdown',e=>{
   if(e.target.closest('button')) return;
-  if(e.pointerType==='mouse'){ input.active=true; return }
+  if(e.pointerType==='mouse') return;
   if(joyId!==null) return; joyId=e.pointerId; joyX=e.clientX; joyY=e.clientY;
   const j=$('joy'); j.style.left=joyX+'px'; j.style.top=joyY+'px'; j.hidden=false; $('joyKnob').style.transform='translate(-50%,-50%)';
 });
@@ -688,7 +799,7 @@ gameEl.addEventListener('pointermove',e=>{
   if(e.pointerId!==joyId) return;
   const dx=e.clientX-joyX, dy=e.clientY-joyY, d=Math.hypot(dx,dy);
   if(d>6) input.angle=Math.atan2(dy,dx);
-  const k=Math.min(d,40); $('joyKnob').style.transform=`translate(calc(-50% + ${dx/d*k||0}px),calc(-50% + ${dy/d*k||0}px))`;
+  const k=Math.min(d,42); $('joyKnob').style.transform=`translate(calc(-50% + ${dx/d*k||0}px),calc(-50% + ${dy/d*k||0}px))`;
 });
 const joyEnd=e=>{ if(e.pointerId===joyId){ joyId=null; $('joy').hidden=true } };
 gameEl.addEventListener('pointerup',joyEnd); gameEl.addEventListener('pointercancel',joyEnd);
@@ -702,83 +813,178 @@ addEventListener('keydown',e=>{ if(e.code==='Space') input.boost=true; if(e.code
 addEventListener('keyup',e=>{ if(e.code==='Space') input.boost=false });
 
 /* =========================================================
-   Rendering
+   Graphics: everything is pre-drawn once into small images
+   ("sprites") so each frame is cheap to draw.
    ========================================================= */
-const cv=$('cv'), g=cv.getContext('2d');
-let raf=null, cam={x:0,y:0,z:1}, dpr=1;
-function resize(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr }
+const cv=$('cv'), g=cv.getContext('2d',{alpha:false});
+let raf=null, cam={x:0,y:0,z:1}, dpr=1, lastFrame=0;
+function resize(){ dpr=Math.min(1.5,window.devicePixelRatio||1); cv.width=Math.round(innerWidth*dpr); cv.height=Math.round(innerHeight*dpr) }
 addEventListener('resize',resize); resize();
-function startRender(){ stopRender(); const loop=()=>{ draw(); raf=requestAnimationFrame(loop) }; raf=requestAnimationFrame(loop) }
+function startRender(){ stopRender(); lastFrame=performance.now(); const loop=t=>{ draw(t); raf=requestAnimationFrame(loop) }; raf=requestAnimationFrame(loop) }
 function stopRender(){ if(raf) cancelAnimationFrame(raf); raf=null }
-function shade(hex,f){ const n=parseInt(hex.slice(1),16); let r=n>>16,gg=n>>8&255,b=n&255; r=Math.round(r*f);gg=Math.round(gg*f);b=Math.round(b*f); return `rgb(${Math.min(255,r)},${Math.min(255,gg)},${Math.min(255,b)})` }
+function mk(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c }
+function hexRgb(h){ const n=parseInt(h.slice(1),16); return [n>>16,n>>8&255,n&255] }
+function mix(h,f){ const [r,gg,b]=hexRgb(h); const m=v=>Math.max(0,Math.min(255,Math.round(f>1? v+(255-v)*(f-1) : v*f))); return `rgb(${m(r)},${m(gg)},${m(b)})` }
 
-function draw(){
+const SPR={seg:new Map(),orb:new Map(),fruit:[],pu:[],rocks:[],bg:null,glow:null};
+function segSprite(col,alt){
+  const key=col+alt; let c=SPR.seg.get(key); if(c) return c;
+  c=mk(64,64); const x=c.getContext('2d'); const base=alt?mix(col,1.28):col;
+  const gr=x.createRadialGradient(24,22,4,32,32,31); gr.addColorStop(0,mix(base,1.45)); gr.addColorStop(.45,base); gr.addColorStop(1,mix(base,.45));
+  x.fillStyle=gr; x.beginPath(); x.arc(32,32,31,0,Math.PI*2); x.fill();
+  x.fillStyle='rgba(255,255,255,.35)'; x.beginPath(); x.ellipse(24,20,9,5,-.6,0,Math.PI*2); x.fill();
+  SPR.seg.set(key,c); return c;
+}
+function orbSprite(ci){
+  let c=SPR.orb.get(ci); if(c) return c; const col=COLORS[ci%COLORS.length];
+  c=mk(48,48); const x=c.getContext('2d');
+  const gr=x.createRadialGradient(24,24,0,24,24,24); gr.addColorStop(0,'#fff'); gr.addColorStop(.18,mix(col,1.3)); gr.addColorStop(.42,col); gr.addColorStop(.6,col+'55'); gr.addColorStop(1,col+'00');
+  x.fillStyle=gr; x.fillRect(0,0,48,48); SPR.orb.set(ci,c); return c;
+}
+function buildSprites(){
+  for(const e of FRUITS){ const c=mk(72,72), x=c.getContext('2d');
+    const gl=x.createRadialGradient(36,36,0,36,36,36); gl.addColorStop(0,'rgba(255,255,255,.35)'); gl.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=gl; x.fillRect(0,0,72,72);
+    x.font='46px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(e,36,39); SPR.fruit.push(c) }
+  for(const P of POWERS){ const c=mk(112,112), x=c.getContext('2d');
+    const gl=x.createRadialGradient(56,56,20,56,56,56); gl.addColorStop(0,P.col+'aa'); gl.addColorStop(1,P.col+'00'); x.fillStyle=gl; x.fillRect(0,0,112,112);
+    x.fillStyle='#0B1020'; x.beginPath(); x.arc(56,56,30,0,Math.PI*2); x.fill();
+    x.lineWidth=5; x.strokeStyle=P.col; x.stroke();
+    x.fillStyle=P.col; x.font=(P.icon.length>2&&!/\p{Extended_Pictographic}/u.test(P.icon)?'800 30px Nunito,sans-serif':'34px "Noto Color Emoji","Apple Color Emoji",sans-serif'); x.textAlign='center'; x.textBaseline='middle'; x.fillText(P.icon,56,59);
+    SPR.pu.push(c) }
+  // floor tile (hexagons)
+  const R=30, TW=90, TH=52, t=mk(TW,TH), x=t.getContext('2d');
+  x.fillStyle='#16244A'; x.fillRect(0,0,TW,TH);
+  const hex=(cx,cy)=>{ x.beginPath(); for(let i=0;i<6;i++){ const a=Math.PI/3*i; x.lineTo(cx+Math.cos(a)*(R-2.5),cy+Math.sin(a)*(R-2.5)) } x.closePath();
+    const gr=x.createLinearGradient(cx,cy-R,cx,cy+R); gr.addColorStop(0,'#21346A'); gr.addColorStop(1,'#1A2A57'); x.fillStyle=gr; x.fill(); x.strokeStyle='#2B4280'; x.lineWidth=1.5; x.stroke() };
+  for(const [cx,cy] of [[0,0],[90,0],[45,26],[0,52],[90,52]]) hex(cx,cy);
+  SPR.bg=g.createPattern(t,'repeat');
+  const gc=mk(64,64), gx=gc.getContext('2d'); const gg=gx.createRadialGradient(32,32,0,32,32,32); gg.addColorStop(0,'rgba(255,255,255,.9)'); gg.addColorStop(1,'rgba(255,255,255,0)'); gx.fillStyle=gg; gx.fillRect(0,0,64,64); SPR.glow=gc;
+}
+function buildRocks(rocks){
+  SPR.rocks=rocks.map(([x0,y0,r,seed])=>{
+    let s=seed; const R=()=>{ s=(s*16807)%2147483647; return s/2147483647 };
+    const S=Math.ceil(r*2+20), c=mk(S,S), x=c.getContext('2d'), cx=S/2, cy=S/2, n=9+Math.floor(R()*4), pts=[];
+    for(let i=0;i<n;i++){ const a=i/n*Math.PI*2, rr=r*(0.82+R()*0.22); pts.push([cx+Math.cos(a)*rr,cy+Math.sin(a)*rr]) }
+    x.fillStyle='rgba(0,0,0,.35)'; x.beginPath(); pts.forEach(([a,b],i)=>i?x.lineTo(a+5,b+7):x.moveTo(a+5,b+7)); x.closePath(); x.fill();
+    const gr=x.createLinearGradient(cx-r,cy-r,cx+r,cy+r); gr.addColorStop(0,'#9AA3B5'); gr.addColorStop(.5,'#6B7387'); gr.addColorStop(1,'#3E4456');
+    x.fillStyle=gr; x.beginPath(); pts.forEach(([a,b],i)=>i?x.lineTo(a,b):x.moveTo(a,b)); x.closePath(); x.fill();
+    x.strokeStyle='#2A2F3D'; x.lineWidth=3; x.stroke();
+    x.strokeStyle='rgba(30,34,46,.6)'; x.lineWidth=2; for(let k=0;k<3;k++){ x.beginPath(); let px=cx+(R()-.5)*r, py=cy+(R()-.5)*r; x.moveTo(px,py); for(let j=0;j<3;j++){ px+=(R()-.5)*r*.6; py+=(R()-.5)*r*.6; x.lineTo(px,py) } x.stroke() }
+    x.fillStyle='rgba(255,255,255,.22)'; x.beginPath(); x.ellipse(cx-r*.3,cy-r*.35,r*.35,r*.18,-.5,0,Math.PI*2); x.fill();
+    return {x:x0,y:y0,r,c,S};
+  });
+}
+buildSprites();
+
+/* ---------- particles & effects ---------- */
+const particles=[];
+function eatFx(f,byId){
+  const col = f.k===1 ? '#FFFFFF' : COLORS[f.c%COLORS.length];
+  for(let i=0;i<(f.k===1?6:2);i++) particles.push({x:f.x,y:f.y,vx:rnd(-60,60),vy:rnd(-60,60),life:.45,max:.45,r:rnd(2,4),col,to:byId});
+}
+function burst(x,y,col){ for(let i=0;i<34;i++){ const a=Math.random()*Math.PI*2, s=rnd(80,360); particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.5,1),max:1,r:rnd(3,7),col}) } }
+let bigT=null;
+function bigText(txt,col){ const el=$('bigText'); el.textContent=txt; el.style.color=col; el.hidden=false; el.style.animation='none'; void el.offsetWidth; el.style.animation=''; clearTimeout(bigT); bigT=setTimeout(()=>el.hidden=true,1400) }
+
+/* ---------- drawing ---------- */
+function drawSnake(w,p,head,isMe,now,vx0,vx1,vy0,vy1,leader){
+  const path=isMe?mover.path:w.path; if(!path.length) return;
+  const wd=width(w.len), fl=w.flags||0;
+  const [hx,hy]=head;
+  // which path points are behind the drawn head (others are drawn a little in the past)
+  let start=1;
+  if(!isMe&&path.length>2){ const d=Math.hypot(path[0][0]-hx,path[0][1]-hy); start=Math.min(path.length-1,1+Math.floor(d/SEG)) }
+  const blink=(fl&F_INV)&&Math.floor(now/120)%2;
+  g.globalAlpha=blink?.45:1;
+  // shadow
+  g.lineCap='round'; g.lineJoin='round'; g.strokeStyle='rgba(0,0,0,.28)'; g.lineWidth=wd;
+  g.beginPath(); g.moveTo(hx+5,hy+7); for(let i=start;i<path.length;i+=2) g.lineTo(path[i][0]+5,path[i][1]+7); g.stroke();
+  if(fl&F_BOOST){ g.globalAlpha=(blink?.45:1)*.35; g.drawImage(SPR.glow,hx-wd*2,hy-wd*2,wd*4,wd*4); g.globalAlpha=blink?.45:1 }
+  // body, tail first
+  const s1=segSprite(p.color,0), s2=segSprite(p.color,1), sz=wd, hs=sz/2;
+  for(let i=path.length-1;i>=start;i--){ const q=path[i]; if(q[0]<vx0||q[0]>vx1||q[1]<vy0||q[1]>vy1) continue;
+    g.drawImage((Math.floor(i/3)%2)?s2:s1,q[0]-hs,q[1]-hs,sz,sz) }
+  // head
+  const hr=wd*0.82+5, im=faceImg(p);
+  if(fl&F_SHIELD){ g.strokeStyle='rgba(63,195,255,'+(.55+Math.sin(now/120)*.25)+')'; g.lineWidth=4; g.beginPath(); g.arc(hx,hy,hr+12,0,Math.PI*2); g.stroke() }
+  if(fl&F_MAGNET){ g.strokeStyle='rgba(255,79,139,.35)'; g.lineWidth=2; g.setLineDash([6,8]); g.lineDashOffset=-now/30; g.beginPath(); g.arc(hx,hy,wd/2+150,0,Math.PI*2); g.stroke(); g.setLineDash([]) }
+  g.drawImage(s1,hx-hr-4,hy-hr-4,(hr+4)*2,(hr+4)*2);
+  if(im&&im.complete&&im.naturalWidth){ g.save(); g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.clip(); g.drawImage(im,hx-hr,hy-hr,hr*2,hr*2); g.restore() }
+  else { g.fillStyle=mix(p.color,.6); g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.fill(); if(p.emoji){ g.font=`${hr*1.35}px "Noto Color Emoji","Apple Color Emoji",sans-serif`; g.textAlign='center'; g.textBaseline='middle'; g.fillText(p.emoji,hx,hy+1) } }
+  g.lineWidth=2.5; g.strokeStyle='rgba(255,255,255,.8)'; g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.stroke();
+  // name + crown
+  g.font='800 13px Nunito,sans-serif'; g.textAlign='center'; g.textBaseline='bottom'; g.lineWidth=4; g.strokeStyle='rgba(11,16,32,.9)'; g.fillStyle='#fff';
+  g.strokeText(p.name,hx,hy-hr-7); g.fillText(p.name,hx,hy-hr-7);
+  if(leader){ g.font='20px "Noto Color Emoji","Apple Color Emoji",sans-serif'; g.textBaseline='bottom'; g.fillText('👑',hx,hy-hr-22) }
+  g.globalAlpha=1;
+}
+let fpsAvg=60;
+function draw(now){
   if(!view) return;
-  const W=cv.width, H=cv.height, now=performance.now();
-  const alpha=Math.min(1,(now-view.lastSnap)/view.snapDt);
-  const me=view.worms.get(view.me);
-  // camera
-  if(me&&me.alive){ const hx=me.px+(me.x-me.px)*alpha, hy=me.py+(me.y-me.py)*alpha; cam.x+=(hx-cam.x)*0.25; cam.y+=(hy-cam.y)*0.25;
-    const tz=Math.max(0.55,1.05-Math.sqrt(me.len)*0.014); cam.z+=(tz-cam.z)*0.04 }
-  const z=cam.z*dpr*Math.min(1.15,Math.max(0.75,Math.min(W,H)/dpr/700));
-  g.setTransform(1,0,0,1,0,0); g.fillStyle='#0B1020'; g.fillRect(0,0,W,H);
+  const dt=Math.min(0.05,(now-lastFrame)/1000); lastFrame=now; fpsAvg=fpsAvg*0.95+(1/Math.max(dt,1e-3))*0.05;
+  moverStep(dt);
+  const W=cv.width, H=cv.height;
+  // camera follows me
+  if(mover.alive){ cam.x+=(mover.x-cam.x)*Math.min(1,dt*10); cam.y+=(mover.y-cam.y)*Math.min(1,dt*10);
+    const tz=Math.max(0.58,1.08-Math.sqrt(mover.len)*0.013); cam.z+=(tz-cam.z)*Math.min(1,dt*2) }
+  const z=cam.z*dpr*Math.min(1.25,Math.max(0.85,Math.min(W,H)/dpr/430));
+  g.setTransform(1,0,0,1,0,0); g.fillStyle='#070B18'; g.fillRect(0,0,W,H);
   g.setTransform(z,0,0,z,W/2-cam.x*z,H/2-cam.y*z);
-  const vx0=cam.x-W/2/z-40, vx1=cam.x+W/2/z+40, vy0=cam.y-H/2/z-40, vy1=cam.y+H/2/z+40;
-  // arena
-  g.fillStyle='#121A36'; g.beginPath(); g.arc(0,0,WORLD,0,Math.PI*2); g.fill();
-  g.fillStyle='#1B2650'; const step=46;
-  for(let x=Math.floor(vx0/step)*step;x<vx1;x+=step) for(let y=Math.floor(vy0/step)*step;y<vy1;y+=step){ if(x*x+y*y<WORLD*WORLD){ g.beginPath(); g.arc(x+((y/step)&1?step/2:0),y,2.2,0,Math.PI*2); g.fill() } }
-  g.lineWidth=14; g.strokeStyle='#FF4F8B'; g.globalAlpha=.55+Math.sin(now/300)*.2; g.beginPath(); g.arc(0,0,WORLD+7,0,Math.PI*2); g.stroke(); g.globalAlpha=1;
+  const vx0=cam.x-W/2/z-60, vx1=cam.x+W/2/z+60, vy0=cam.y-H/2/z-60, vy1=cam.y+H/2/z+60;
+  // floor + wall
+  g.fillStyle=SPR.bg; g.beginPath(); g.arc(0,0,WORLD,0,Math.PI*2); g.fill();
+  g.lineWidth=18; g.strokeStyle='#FF4F8B'; g.globalAlpha=.5+Math.sin(now/300)*.2; g.beginPath(); g.arc(0,0,WORLD+9,0,Math.PI*2); g.stroke();
+  g.lineWidth=4; g.globalAlpha=1; g.strokeStyle='#FFB3CC'; g.beginPath(); g.arc(0,0,WORLD,0,Math.PI*2); g.stroke();
+  // rocks
+  for(const r of SPR.rocks){ if(r.x+r.S<vx0||r.x-r.S>vx1||r.y+r.S<vy0||r.y-r.S>vy1) continue; g.drawImage(r.c,r.x-r.S/2,r.y-r.S/2) }
   // food
-  for(const f of view.food.values()){
+  const meHead=[mover.x,mover.y], meR=width(mover.len)/2+16+((mover.flags&F_MAGNET)?150:0);
+  for(const [id,f] of view.food){
     if(f.x<vx0||f.x>vx1||f.y<vy0||f.y>vy1) continue;
-    const r=f.v===1?4.5:f.v===2?6.5:8, c=COLORS[f.c%COLORS.length], p=1+Math.sin(now/260+f.ph)*.18;
-    g.fillStyle=c; g.globalAlpha=.25; g.beginPath(); g.arc(f.x,f.y,r*2.1*p,0,Math.PI*2); g.fill();
-    g.globalAlpha=1; g.beginPath(); g.arc(f.x,f.y,r,0,Math.PI*2); g.fill();
+    if(mover.alive&&!f.gone&&Math.hypot(f.x-meHead[0],f.y-meHead[1])<meR){ f.gone=now; eatFx(f,view.me) }
+    if(f.gone){ if(now-f.gone<1500) continue; f.gone=0 }
+    const pop=f.born?Math.min(1,(now-f.born)/250):1, bob=1+Math.sin(now/260+f.ph)*.12;
+    if(f.k===1){ const s=40*bob*pop; g.drawImage(SPR.fruit[f.c%SPR.fruit.length],f.x-s/2,f.y-s/2,s,s) }
+    else { const s=(f.k===0?21:28)*bob*pop; g.drawImage(orbSprite(f.c),f.x-s/2,f.y-s/2,s,s) }
   }
-  // worms (others first, me on top)
-  const order=[...view.worms.values()].filter(w=>w.alive&&w.path.length).sort((a,b)=>(a.id===view.me)-(b.id===view.me));
-  for(const w of order){
-    const p=view.P(w.id)||{color:'#B6F23C',name:'?'};
-    const hx=w.px+(w.x-w.px)*alpha, hy=w.py+(w.y-w.py)*alpha, wd=width(w.len);
-    if(w.inv && Math.floor(now/120)%2) g.globalAlpha=.45;
-    // body
-    g.lineCap='round'; g.lineJoin='round';
-    g.beginPath(); g.moveTo(hx,hy); for(let i=1;i<w.path.length;i++) g.lineTo(w.path[i][0],w.path[i][1]);
-    g.strokeStyle=shade(p.color,.55); g.lineWidth=wd+4; g.stroke();
-    g.strokeStyle=p.color; g.lineWidth=wd; g.stroke();
-    // stripes
-    g.fillStyle=shade(p.color,1.25);
-    for(let i=4;i<w.path.length;i+=5){ const q=w.path[i]; if(q[0]<vx0||q[0]>vx1||q[1]<vy0||q[1]>vy1) continue; g.beginPath(); g.arc(q[0],q[1],wd*0.28,0,Math.PI*2); g.fill() }
-    if(w.boost){ g.strokeStyle='#fff'; g.globalAlpha*=.25; g.lineWidth=wd+12; g.beginPath(); g.moveTo(hx,hy); for(let i=1;i<Math.min(w.path.length,30);i++) g.lineTo(w.path[i][0],w.path[i][1]); g.stroke(); g.globalAlpha=w.inv&&Math.floor(now/120)%2?.45:1 }
-    // head with face
-    const hr=wd*1.05+5, im=faceImg(p);
-    g.fillStyle=p.color; g.beginPath(); g.arc(hx,hy,hr+3.5,0,Math.PI*2); g.fill();
-    if(im&&im.complete&&im.naturalWidth){ g.save(); g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.clip(); g.translate(hx,hy); g.drawImage(im,-hr,-hr,hr*2,hr*2); g.restore() }
-    else { g.fillStyle=shade(p.color,.7); g.beginPath(); g.arc(hx,hy,hr,0,Math.PI*2); g.fill(); if(p.emoji){ g.font=`${hr*1.3}px sans-serif`; g.textAlign='center'; g.textBaseline='middle'; g.fillText(p.emoji,hx,hy+1) } }
-    // name
-    g.font=`800 ${13}px Nunito,sans-serif`; g.textAlign='center'; g.textBaseline='bottom'; g.lineWidth=4; g.strokeStyle='#0B1020'; g.fillStyle='#fff';
-    g.strokeText(p.name,hx,hy-hr-6); g.fillText(p.name,hx,hy-hr-6);
-    g.globalAlpha=1;
-  }
-  // minimap
+  // power-ups
+  for(const p of view.pu.values()){ if(p.x<vx0||p.x>vx1||p.y<vy0||p.y>vy1) continue; const s=(58+Math.sin(now/200+p.ph)*6)*(p.born?Math.min(1,(now-p.born)/300):1); g.drawImage(SPR.pu[p.t],p.x-s/2,p.y-s/2,s,s) }
+  // snakes
+  let leader=null, ll=-1; for(const w of view.worms.values()){ const L=w.id===view.me?(mover.alive?mover.len:0):(w.alive?w.len:0); if(L>ll){ll=L;leader=w.id} }
+  const list=[...view.worms.values()].filter(w=>w.id===view.me?mover.alive:(w.alive&&w.path.length)).sort((a,b)=>(a.id===view.me)-(b.id===view.me));
+  for(const w of list){ const p=view.P(w.id)||{color:'#B6F23C',name:'?'}; const isMe=w.id===view.me; if(isMe) w.len=mover.len;
+    drawSnake(w,p,view.headOf(w,now),isMe,now,vx0,vx1,vy0,vy1,w.id===leader) }
+  // particles
+  for(let i=particles.length-1;i>=0;i--){ const q=particles[i]; q.life-=dt; if(q.life<=0){ particles.splice(i,1); continue }
+    if(q.to!=null){ const w=view.worms.get(q.to); if(w){ const h=view.headOf(w,now); q.vx+=(h[0]-q.x)*dt*30; q.vy+=(h[1]-q.y)*dt*30 } }
+    q.x+=q.vx*dt; q.y+=q.vy*dt; q.vx*=.96; q.vy*=.96;
+    g.globalAlpha=Math.max(0,q.life/q.max); g.fillStyle=q.col; g.beginPath(); g.arc(q.x,q.y,q.r,0,Math.PI*2); g.fill() }
+  g.globalAlpha=1;
+  if(particles.length>400) particles.splice(0,particles.length-400);
+  // minimap (bottom-left)
   g.setTransform(dpr,0,0,dpr,0,0);
-  const mr=44, mx=innerWidth-mr-14, my=innerHeight-mr-130;
-  g.fillStyle='#0009'; g.beginPath(); g.arc(mx,my,mr+4,0,Math.PI*2); g.fill(); g.strokeStyle='#FF4F8B88'; g.lineWidth=2; g.beginPath(); g.arc(mx,my,mr,0,Math.PI*2); g.stroke();
-  for(const w of view.worms.values()){ if(!w.alive) continue; const p=view.P(w.id); g.fillStyle=p?p.color:'#fff'; const r=w.id===view.me?4.5:3; g.beginPath(); g.arc(mx+w.x/WORLD*mr,my+w.y/WORLD*mr,r,0,Math.PI*2); g.fill(); if(w.id===view.me){ g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke() } }
+  const mr=46, mx=mr+14, my=innerHeight-mr-56;
+  g.fillStyle='rgba(0,0,0,.55)'; g.beginPath(); g.arc(mx,my,mr+4,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(255,79,139,.6)'; g.lineWidth=2; g.beginPath(); g.arc(mx,my,mr,0,Math.PI*2); g.stroke();
+  g.fillStyle='rgba(154,163,181,.7)'; for(const r of SPR.rocks){ g.beginPath(); g.arc(mx+r.x/WORLD*mr,my+r.y/WORLD*mr,Math.max(1.5,r.r/WORLD*mr),0,Math.PI*2); g.fill() }
+  for(const p of view.pu.values()){ g.fillStyle=POWERS[p.t].col; g.fillRect(mx+p.x/WORLD*mr-1.5,my+p.y/WORLD*mr-1.5,3,3) }
+  for(const w of view.worms.values()){ const isMe=w.id===view.me; if(isMe?!mover.alive:!w.alive) continue; const pp=view.P(w.id); const h=isMe?[mover.x,mover.y]:(w.buf.length?[w.buf[w.buf.length-1][1],w.buf[w.buf.length-1][2]]:[0,0]);
+    g.fillStyle=pp?pp.color:'#fff'; g.beginPath(); g.arc(mx+h[0]/WORLD*mr,my+h[1]/WORLD*mr,isMe?4.5:3,0,Math.PI*2); g.fill(); if(isMe){ g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke() } }
   hud(now);
 }
 let hudT=0;
 function hud(now){
   if(now-hudT<200) return; hudT=now;
   const s=Math.ceil(view.T/1000); $('hudTimer').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); $('hudTimer').classList.toggle('low',s<=15);
-  const me=view.worms.get(view.me); $('myLen').textContent=me&&me.alive?me.len:0;
-  const list=[...view.worms.values()].map(w=>({w,p:view.P(w.id)})).filter(x=>x.p).sort((a,b)=>(b.w.alive?b.w.len:0)-(a.w.alive?a.w.len:0)).slice(0,6);
-  $('hudBoard').innerHTML=list.map((x,i)=>`<div class="r${x.w.id===view.me?' me':''}"><i>${i+1}</i>${x.p.face?`<img src="${x.p.face}" alt="" style="border:2px solid ${x.p.color}">`:`<span class="dot" style="background:${x.p.color};display:grid;place-items:center;font-size:13px;flex:none;max-width:22px">${x.p.emoji||''}</span>`}<span>${esc(x.p.name)}</span><b>${x.w.alive?x.w.len:'—'}</b></div>`).join('');
-  if(me&&!me.alive&&me.deadAt&&view.playing){ $('deadBox').hidden=false; $('deadCount').textContent=Math.max(1,Math.ceil((RESPAWN-(Date.now()-me.deadAt))/1000)) } else $('deadBox').hidden=true;
+  $('myLen').textContent=mover.alive?mover.len:0;
+  const lenOf=w=>w.id===view.me?(mover.alive?mover.len:0):(w.alive?w.len:0);
+  const list=[...view.worms.values()].map(w=>({w,p:view.P(w.id),L:lenOf(w)})).filter(x=>x.p).sort((a,b)=>b.L-a.L).slice(0,6);
+  $('hudBoard').innerHTML=list.map((x,i)=>`<div class="r${x.w.id===view.me?' me':''}"><i>${i===0?'👑':i+1}</i>${x.p.face?`<img src="${x.p.face}" alt="" style="border:2px solid ${x.p.color}">`:`<span class="dot" style="background:${x.p.color};display:grid;place-items:center;font-size:12px">${x.p.emoji||''}</span>`}<span>${esc(x.p.name)}</span><b>${x.L||'—'}</b></div>`).join('');
+  const me=view.worms.get(view.me);
+  if(me&&!mover.alive&&me.deadAt&&view.playing){ $('deadBox').hidden=false; $('deadCount').textContent=Math.max(1,Math.ceil((RESPAWN-(Date.now()-me.deadAt))/1000)) } else $('deadBox').hidden=true;
+  const pw=Object.entries(view.myPow).filter(([k,t])=>t>Date.now());
+  $('hudPow').innerHTML=pw.map(([k,t])=>{ const P=POWERS.find(x=>x.k===k); return `<span style="border-color:${P.col}">${P.icon} <b>${Math.ceil((t-Date.now())/1000)}</b></span>` }).join('');
 }
 
-/* keep the screen on during games (Android app) */
 document.addEventListener('visibilitychange',()=>{ if(document.hidden&&host&&host.sim) toast('Keep the game open — you are the host!') });
 </script>
 </body>
