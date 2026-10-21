@@ -1,4 +1,4 @@
-package com.faceworms.game;
+package com.noyon.snake;
 
 import android.Manifest;
 import android.app.Activity;

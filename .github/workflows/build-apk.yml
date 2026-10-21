@@ -30,18 +30,18 @@ jobs:
         run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk FaceWorms.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk NoyonsSnake.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: FaceWorms-apk
-          path: FaceWorms.apk
+          name: NoyonsSnake-apk
+          path: NoyonsSnake.apk
 
       - name: Publish download link
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Face Worms (latest)
-          body: "Download **FaceWorms.apk** below and install it on Android. Build ${{ github.run_number }}."
-          files: FaceWorms.apk
+          name: Noyon's Snake (latest)
+          body: "Download **NoyonsSnake.apk** below and install it on Android. Build ${{ github.run_number }}."
+          files: NoyonsSnake.apk
           make_latest: true

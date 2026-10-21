@@ -1,15 +1,15 @@
-# Face Worms
+# Noyon's Snake
 
-A multiplayer worm game for Android: every player's face is on their worm's head.
+A multiplayer snake game for Android: every player's face is on their snake's head.
 
 - **Internet games**: one player creates a room and shares the 4-digit code.
 - **Hotspot games** (no internet): the host turns on their phone's hotspot, friends connect to it and join.
-- 2–10 players, 2/5/10-minute rounds, worms come back 3 seconds after dying, computer worms fill empty seats.
+- 2–10 players, 2/5/10-minute rounds, snakes come back 3 seconds after dying, computer snakes fill empty seats.
 
 ## Download
 
 The latest APK is built automatically on every push:
-**Releases → latest → FaceWorms.apk**
+**Releases → latest → NoyonsSnake.apk**
 
 ## Folders
 

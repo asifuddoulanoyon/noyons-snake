@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.faceworms.game'
+    namespace 'com.noyon.snake'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.faceworms.game'
+        applicationId 'com.noyon.snake'
         minSdk 26
         targetSdk 34
         versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')

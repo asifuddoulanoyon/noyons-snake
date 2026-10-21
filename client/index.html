@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0B1020">
-<title>Face Worms</title>
+<title>Noyon's Snake</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
 <style>
 :root{
@@ -116,8 +116,8 @@ button{cursor:pointer}
 <!-- HOME -->
 <section class="screen" id="s-home">
   <div class="col">
-    <div class="logo">Face<span>Worms</span></div>
-    <p class="sub">Your face. Your worm. Eat your friends.</p>
+    <div class="logo">Noyon's <span>Snake</span></div>
+    <p class="sub">Your face. Your snake. Eat your friends.</p>
     <div class="card">
       <div class="faceRow">
         <button class="face" id="faceBtn" type="button" aria-label="Take face photo">TAP TO<br>ADD FACE</button>
@@ -155,7 +155,7 @@ button{cursor:pointer}
     <div class="card">
       <span class="lbl">Players (including you)</span>
       <div class="stepper"><button type="button" id="pMinus">−</button><b id="pCount">3</b><button type="button" id="pPlus">+</button></div>
-      <p class="hint">Empty seats are filled with computer worms when you start.</p>
+      <p class="hint">Empty seats are filled with computer snakes when you start.</p>
     </div>
     <div class="card">
       <span class="lbl">Game time</span>
@@ -309,7 +309,7 @@ $('camShot').onclick=()=>{
 function checkProfile(errEl){
   myName=$('nameIn').value.trim();
   if(!myName){ $(errEl).textContent='Type your name first.'; return false }
-  if(!myFace){ $(errEl).textContent='Add your face photo first — it goes on your worm\'s head!'; return false }
+  if(!myFace){ $(errEl).textContent='Add your face photo first — it goes on your snake\'s head!'; return false }
   $(errEl).textContent=''; return true;
 }
 
@@ -581,7 +581,7 @@ class Host{
 function startHosting(code){
   host=new Host(code); view=new View(0,true);
   host.pushRoster();
-  if(host.mode==='online'){ $('lobbyLbl').textContent='Room code'; $('lobbyCode').textContent=code; $('lobbyCode').style.fontSize=''; $('lobbyHint').textContent='Tell your friends: open Face Worms → Join game → Internet → type this code.' }
+  if(host.mode==='online'){ $('lobbyLbl').textContent='Room code'; $('lobbyCode').textContent=code; $('lobbyCode').style.fontSize=''; $('lobbyHint').textContent='Tell your friends: open Noyon\'s Snake → Join game → Internet → type this code.' }
   else { const ip=hostIps[0]||'192.168.43.1'; $('lobbyLbl').textContent='Hotspot address'; $('lobbyCode').textContent=ip; $('lobbyCode').style.fontSize='34px';
     $('lobbyHint').textContent='Friends: connect to this phone\'s hotspot → Join game → Hotspot. If the address isn\'t filled in, type: '+ip }
   $('startBtn').hidden=false; $('waitHint').hidden=true; show('s-lobby');
@@ -627,7 +627,7 @@ class View{
     let h=real.map(p=>`<div class="pl"><div class="face" style="border-color:${p.color}">${p.face?`<img src="${p.face}" alt="">`:''}</div><span>${esc(p.name)}${p.id===this.me?' (you)':''}</span></div>`).join('');
     for(let i=real.length;i<this.max;i++) h+=`<div class="pl empty"><div class="face">?</div><span>waiting…</span></div>`;
     $('lobbyPlayers').innerHTML=h;
-    if(this.isHost) $('startBtn').textContent = real.length<this.max ? `Start now (${this.max-real.length} computer worm${this.max-real.length>1?'s':''})` : 'Start game';
+    if(this.isHost) $('startBtn').textContent = real.length<this.max ? `Start now (${this.max-real.length} computer snake${this.max-real.length>1?'s':''})` : 'Start game';
   }
   applySnap(s){
     const now=performance.now(); this.snapDt=this.lastSnap?Math.min(200,now-this.lastSnap):TICK; this.lastSnap=now; this.T=s.T;

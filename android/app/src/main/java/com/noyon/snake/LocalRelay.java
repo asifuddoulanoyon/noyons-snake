@@ -1,4 +1,4 @@
-package com.faceworms.game;
+package com.noyon.snake;
 
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
