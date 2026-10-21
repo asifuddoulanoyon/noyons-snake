@@ -260,6 +260,8 @@ button{cursor:pointer}
 const RELAY_URL = (()=>{ try{ return localStorage.getItem('fw_relay') || 'wss://worm-game-relay.onrender.com' }catch(e){ return 'wss://worm-game-relay.onrender.com' } })();
 const HOT_PORT = 8787;
 const NATIVE = window.FWNative || null;          // provided by the Android app
+// Wake the free online server early (it sleeps when unused).
+try{ fetch(RELAY_URL.replace(/^ws/,'http'),{mode:'no-cors',cache:'no-store'}).catch(()=>{}) }catch(e){}
 
 const $ = id => document.getElementById(id);
 const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v }catch(e){ return d } }, set(k,v){ try{ localStorage.setItem(k,v) }catch(e){} } };
@@ -341,7 +343,7 @@ let net=null;
 function connect(url, onOpen, onMsg, onClose){
   let ws; try{ ws=new WebSocket(url) }catch(e){ onClose('bad'); return null }
   let opened=false;
-  const to=setTimeout(()=>{ if(!opened){ try{ws.close()}catch(e){} onClose('timeout') } }, 12000);
+  const to=setTimeout(()=>{ if(!opened){ try{ws.close()}catch(e){} onClose('timeout') } }, url.startsWith('wss:')?75000:12000);
   ws.onopen=()=>{ opened=true; clearTimeout(to); onOpen() };
   ws.onmessage=e=>{ let m; try{ m=JSON.parse(e.data) }catch(x){ return } onMsg(m) };
   ws.onclose=()=>{ clearTimeout(to); if(opened) onClose('closed'); else onClose('fail') };
@@ -352,7 +354,7 @@ function connect(url, onOpen, onMsg, onClose){
 
 /* ---------- create (host) ---------- */
 $('doCreate').onclick=()=>{
-  $('createErr').textContent=''; $('doCreate').disabled=true; $('doCreate').textContent='Connecting…';
+  $('createErr').textContent=''; $('doCreate').disabled=true; $('doCreate').textContent= cMode==='online' ? 'Connecting… (up to 1 min)' : 'Connecting…';
   const done=()=>{ $('doCreate').disabled=false; $('doCreate').textContent='Create room' };
   let url;
   if(cMode==='hotspot'){
@@ -375,7 +377,7 @@ $('doJoin').onclick=()=>{
   let url, code;
   if(jMode==='online'){ code=$('codeIn').value.trim(); if(!/^\d{4,5}$/.test(code)){ $('joinErr').textContent='Type the 4-digit room code.'; return } url=RELAY_URL }
   else { const ip=$('ipIn').value.trim(); if(!ip){ $('joinErr').textContent='Type the host address.'; return } store.set('fw_ip',ip); url='ws://'+ip+':'+HOT_PORT; code='hot' }
-  $('doJoin').disabled=true; $('doJoin').textContent='Connecting…';
+  $('doJoin').disabled=true; $('doJoin').textContent= jMode==='online' ? 'Connecting… (up to 1 min)' : 'Connecting…';
   const done=()=>{ $('doJoin').disabled=false; $('doJoin').textContent='Join' };
   net=connect(url,()=>net.send({t:'join',code}),m=>{
     if(m.t==='joined'){ done(); client=new Client(m.id); net.send({t:'up',m:{t:'hello',name:myName,face:myFace}}) }
